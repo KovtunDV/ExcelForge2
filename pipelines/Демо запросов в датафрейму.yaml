@@ -1,0 +1,107 @@
+pipeline_version: 1
+name: Демо запросов в датафрейму
+description: Фильтрация данных по условиям, текстовые фильтры с регулярными выражениями
+  склейка датафреймов
+steps:
+- id: load_excel_1
+  type: load_excel
+  params:
+    input_mode: file
+    directory: ''
+    pattern: '*.xlsx'
+    recursive: false
+    file_path: C:/Users/kovtu.CODER/ExcelForge/Демо_данные/Пример для запросов к DF.xlsx
+    sheet: 0
+    header_mode: first_row
+    start_row: 1
+    usecols: ''
+    dataframe: my_table
+    dtype: str
+  comment: 'Загружаем таблицу /Демо_данные/Пример для запросов к DF.xlsx в  dataframe:
+    my_table'
+- id: cast_column_type_1
+  type: cast_column_type
+  params:
+    source_df: my_table
+    column: Дата начала эксплуатации
+    target_type: datetime
+    errors_to_zero: true
+    use_decimal_objects: false
+  comment: У нас в демо наборе есть данные с датой, преобразуем их к формату DataTime,
+    что бы можно было  фильтровать по дате
+- id: cast_column_type_2
+  type: cast_column_type
+  params:
+    source_df: my_table
+    column: Остаточная стоимость
+    target_type: decimal
+    errors_to_zero: true
+    use_decimal_objects: false
+  comment: У нас в демо наборе есть данные с стоимостью, преобразуем их к формату
+    decimal, что бы можно было использовать числовые фильтры
+- id: query_1
+  type: query
+  params:
+    source_df: my_table
+    target_df: df_q1
+    query: '`Дата начала эксплуатации`>="2016-06-02" and `Остаточная стоимость`>0'
+    column_reference: names
+  comment: Фильтр по дате, Для названия столбцов с пробелами обязательно применяются
+    обратные кавычки
+- id: query_2
+  type: query
+  params:
+    source_df: my_table
+    target_df: df_q2
+    query: ''
+    column_reference: names
+    string_filters:
+    - column: Название
+      mode: contains
+      pattern: iPAD
+      case_insensitive: true
+  comment: 'Сложный строковый фильтр , Для названия столбцов с пробелами обязательно
+    применяются обратные кавычки. Строковый фильтр определяется отдельным блоком и
+    применяется совместно с query: '' тут доп условия''  или только как строковое
+    услови , тогда query: '''' - пустой. case_insensitive: true  - не чуствителен
+    к регистру, false - строгое соответствие'
+- id: query_3
+  type: query
+  params:
+    source_df: my_table
+    target_df: df_q3
+    query: ''
+    column_reference: names
+    string_filters:
+    - column: Название
+      mode: regex
+      pattern: (?=.*3)(?=.*1)
+      case_insensitive: true
+  comment: Сложный строковый фильтр , фильтр по заданному паттерну, найдем все значения
+    в названии, содержащих 3 и 1 в любой последовантельности. Как задать regex паттерн
+    , любой ИИ даст готовый результат по регулярным выражениям.
+- id: concat_dfs_1
+  type: concat_dfs
+  params:
+    target_df: df_concat
+    dataframes: []
+    name_glob: df_*
+    axis: 0
+    ignore_index: true
+    join: outer
+  comment: Мы сделали несколько датафреймов df_* теперь сколеим их в один по строкам
+- id: save_excel_1
+  type: save_excel
+  params:
+    source_df: df_concat
+    out_dir: C:/Users/kovtu.CODER/ExcelForge/Демо_вывод
+    filename: Пример Фильтров и склейки датафреймов Результат.xlsx
+    columns: []
+    template_path: ''
+    template_column_map: {}
+    sheet_name: Sheet1
+    start_row: 1
+    start_col: 1
+    split_by_column: null
+    split_filename_mask: out_{group}.xlsx
+  comment: Сохраняем полученный датафрейм rezuilVPR в таблицу /ExcelForge/Демо_вывод

@@ -1,0 +1,4 @@
+pipeline_version: 1
+name: NewPipeline
+description: Тест2
+steps: []

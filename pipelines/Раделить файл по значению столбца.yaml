@@ -1,0 +1,33 @@
+pipeline_version: 1
+name: Раделить файл по значению столбца
+description: Разделяет общий файл на отдельные файлы по значению поля - в примере
+  по типу оборудования. Вариант фиксированным путем для загрузки
+steps:
+- id: load_excel_1
+  type: load_excel
+  params:
+    input_mode: file
+    directory: ''
+    pattern: '*.xlsx'
+    recursive: false
+    file_path: C:/Users/kovtu.CODER/ExcelForge/Демо_данные/rita.XLSX_depers.xlsx
+    sheet: 0
+    header_mode: first_row
+    start_row: 1
+    usecols: ''
+    dataframe: df_main
+    dtype: str
+- id: save_excel_1
+  type: save_excel
+  params:
+    source_df: df_main
+    out_dir: C:/Users/kovtu.CODER/ExcelForge/Демо_вывод/Разбитый по признаку
+    filename: null
+    columns: []
+    template_path: ''
+    template_column_map: {}
+    sheet_name: Sheet1
+    start_row: 1
+    start_col: 1
+    split_by_column: Вид актива (текст)
+    split_filename_mask: out_{group}.xlsx

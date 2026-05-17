@@ -1,0 +1,98 @@
+pipeline_version: 1
+name: Групировка данных поиск дублей
+description: Фильтрация данных по условиям, текстовые фильтры с регулярными выражениями
+  склейка датафреймов
+steps:
+- id: load_excel_1
+  type: load_excel
+  params:
+    input_mode: file
+    directory: ''
+    pattern: '*.xlsx'
+    recursive: false
+    file_path: C:/Users/kovtu.CODER/ExcelForge/Демо_данные/Данные с дублями для чистки.xlsx
+    sheet: 0
+    header_mode: first_row
+    start_row: 1
+    usecols: ''
+    dataframe: my_table
+    dtype: str
+  comment: 'Загружаем таблицу /Демо_данные/Данные с дублями для чистки.xlsx в  dataframe:
+    my_table'
+- id: cast_column_type_1
+  type: cast_column_type
+  params:
+    source_df: my_table
+    column: Дата начала эксплуатации
+    target_type: datetime
+    errors_to_zero: true
+    use_decimal_objects: false
+  comment: У нас в демо наборе есть данные с датой, преобразуем их к формату DataTime,
+    что бы можно было  фильтровать по дате
+- id: cast_column_type_2
+  type: cast_column_type
+  params:
+    source_df: my_table
+    column: Остаточная стоимость
+    target_type: decimal
+    errors_to_zero: true
+    use_decimal_objects: false
+  comment: У нас в демо наборе есть данные с стоимостью, преобразуем их к формату
+    decimal, что бы можно было использовать числовые фильтры
+- id: groupby_aggregate_1
+  type: groupby_aggregate
+  params:
+    source_df: my_table
+    target_df: df_grouped
+    group_keys:
+    - Серийный номер
+    aggregations: null
+    named_aggregations:
+      найдено дублей:
+        column: Серийный номер
+        func: size
+      последняя_дата:
+        column: Дата начала эксплуатации
+        func: max
+  comment: Сгруппируем данные с подсчетом количества не уникальных значений серийных
+    номеров
+- id: query_1
+  type: query
+  params:
+    source_df: df_grouped
+    target_df: df_q1
+    query: '`найдено дублей`>1'
+    column_reference: names
+  comment: Фильтр по по серийным номерам дольше 1 (не уникальные), к именам столбцов
+    с пробелами обязательно применяются обратные кавычки `найдено дублей`
+- id: sort_list_output_1
+  type: sort_list_output
+  params:
+    source_df: my_table
+    target_df: rusult
+    sort:
+    - Серийный номер
+    list_filter:
+      values_df: df_q1
+      values_column: Серийный номер
+      match_column: Серийный номер
+      mode: in
+    unique_by_column: ''
+    duplicate_keep: first
+  comment: 'Пример выводит все строки, отсортированные по серийному номеру для всех
+    значений которые есть в таблице df_q1 (мы выбирали туда не уникальные записи) '
+- id: save_excel_1
+  type: save_excel
+  params:
+    source_df: rusult
+    out_dir: C:/Users/kovtu.CODER/ExcelForge/Демо_вывод
+    filename: Пример вывода отсортированных Групировка данных поиск дублей Результат.xlsx
+    columns: []
+    template_path: ''
+    template_column_map: {}
+    sheet_name: Sheet1
+    start_row: 1
+    start_col: 1
+    split_by_column: null
+    split_filename_mask: out_{group}.xlsx
+  comment: Сохраняем полученный датафрейм rezuilVPR в таблицу /ExcelForge/Демо_вывод

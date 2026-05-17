@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ExcelForge / local
+*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# User data (optional local outputs)
+output/
+out/
+
+# Local demo / work data (not part of the app distribution)
+Демо_данные/
+Демо_вывод/
+Контроль остатков складов/
+Отчет по продажам/
+объединение/
+*.docx
+~$*
+con
+
+# Temp smoke scripts
+_smoke_*.py

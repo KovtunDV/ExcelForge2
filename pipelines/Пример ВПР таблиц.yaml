@@ -1,0 +1,87 @@
+pipeline_version: 1
+name: Пример ВПР таблиц
+description: тест
+steps:
+- id: load_excel_1
+  type: load_excel
+  params:
+    input_mode: file
+    directory: ''
+    pattern: '*.xlsx'
+    recursive: false
+    file_path: C:/Users/kovtu.CODER/ExcelForge/Демо_данные/Демо_ВПР_таблица1.xlsx
+    sheet: 0
+    header_mode: first_row
+    start_row: 1
+    usecols: ''
+    dataframe: table1
+    dtype: str
+  comment: Загружаем таблицу 1 /Демо_данные/Демо_ВПР_таблица1.xlsx
+- id: load_excel_2
+  type: load_excel
+  params:
+    input_mode: file
+    directory: ''
+    pattern: '*.xlsx'
+    recursive: false
+    file_path: C:/Users/kovtu.CODER/ExcelForge/Демо_данные/Демо_ВПР_таблица2.xlsx
+    sheet: 0
+    header_mode: first_row
+    start_row: 1
+    usecols: ''
+    dataframe: table2
+    dtype: str
+  comment: Загружаем таблицу 2 /Демо_данные/Демо_ВПР_таблица2.xlsx
+- id: df_assign_1
+  type: df_assign
+  params:
+    operation: map_lookup
+    source_df: table1
+    target_df: rezuilVPR
+    target_column:
+    - Остаточная стоимость
+    - new1
+    source_column: OLD
+    prefix: ''
+    suffix: ''
+    column_mode: names
+    columns: []
+    lookup_df: table2
+    source_key: Основное средство
+    lookup_key: Основной номер основного средства
+    lookup_value_column:
+    - БУ / Остаточная стоим. на конец периода
+    - Полное название основного средства
+    subset: []
+    how: any
+    treat_whitespace_as_empty: true
+    fill_value: ''
+    scope: listed
+  comment: 'В данном примере по значению из таблицы source_df: table1 по значению
+    из каждой строки source_key: Основное средство , выполняется поиск в lookup_df:
+    table2  на совпадение с значением столбца lookup_key: Основной номер основного
+    средства, в случае совпадения в table1 заполняется существующий столбец  Остаточная
+    стоимость и создается новый столбец new1.( целевые столбцы перечисляются в target_column:
+    . Заполняются значениями из table2 lookup_value_column:
+
+    - БУ / Остаточная стоим. на конец периода
+
+    - Полное название основного средства
+
+    Столбцы из списков откуда - куда, должны соответствовать. если 2 значения куда
+    то откуда тоже 2 значения '
+- id: save_excel_1
+  type: save_excel
+  params:
+    source_df: rezuilVPR
+    out_dir: C:/Users/kovtu.CODER/ExcelForge/Демо_вывод
+    filename: Пример ВПР таблиц Результат.xlsx
+    columns: []
+    template_path: ''
+    template_column_map: {}
+    sheet_name: Sheet1
+    start_row: 1
+    start_col: 1
+    split_by_column: null
+    split_filename_mask: out_{group}.xlsx
+  comment: Сохраняем полученный датафрейм rezuilVPR в таблицу /ExcelForge/Демо_вывод

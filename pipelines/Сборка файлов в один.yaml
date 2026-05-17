@@ -1,0 +1,33 @@
+pipeline_version: 1
+name: Сборка файлов в один
+description: Тестовая сборка в один файл из каталога по маске out_*.xlsx
+steps:
+- id: load_excel_1
+  type: load_excel
+  params:
+    input_mode: mask
+    directory: C:/Users/kovtu.CODER/ExcelForge/Демо_вывод/Разбитый по признаку
+    directory_open_dialog: false
+    pattern: out_*.xlsx
+    recursive: false
+    file_path: ''
+    sheet: null
+    header_mode: first_row
+    start_row: 1
+    usecols: ''
+    dataframe: df_main
+    dtype: str
+- id: save_excel_1
+  type: save_excel
+  params:
+    source_df: df_main
+    out_dir: C:/Users/kovtu.CODER/ExcelForge/Демо_вывод/Обьединенный файл
+    filename: result.xlsx
+    columns: []
+    template_path: ''
+    template_column_map: {}
+    sheet_name: Sheet1
+    start_row: 1
+    start_col: 1
+    split_by_column: ''
+    split_filename_mask: '{group}.xlsx'

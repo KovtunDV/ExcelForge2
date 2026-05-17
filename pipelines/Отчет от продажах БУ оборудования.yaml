@@ -1,0 +1,312 @@
+pipeline_version: 1
+name: Отчет от продажах БУ оборудования
+description: Подготовка и
+steps:
+- id: globals_settings_1
+  type: globals_settings
+  params:
+    values:
+      Terbank: СЗБ
+      otch_kvart: 2026-04-01
+      otch_god: 2026-01-01
+      file_path_report: C:/Users/kovtu.CODER/ExcelForge/Отчет по продажам/Актуальный
+        отчет/СВОД новая версия 24.04.2026.xlsx
+      directory_work: C:/Users/kovtu.CODER/ExcelForge/Отчет по продажам
+    directory_open_dialog: false
+    directory_var: directory
+    directory_open_dialog_help: Выберите каталог
+    directory_initial: C:/Users/kovtu.CODER/ExcelForge/Отчет по продажам
+    file_open_dialog: false
+    file_var: file_path_report1
+    file_open_dialog_help: Выберите файл отчета по продажам
+    filetypes:
+    - - All files
+      - '*.xlsx'
+  comment: Определим рабочие каталоги, файлы и периоды отчетности
+- id: load_excel_1
+  type: load_excel
+  params:
+    input_mode: file
+    directory: ''
+    pattern: '*.xlsx'
+    recursive: false
+    file_path: '@file_path_report'
+    file_open_dialog: false
+    file_open_dialog_help: Выберите файл для загрузки
+    directory_open_dialog: false
+    directory_open_dialog_help: Выберите каталог с файлами Excel
+    sheet: null
+    header_mode: letters
+    start_row: 3
+    usecols: ''
+    dataframe: df_main
+    dtype: str
+    include_service_columns: false
+    from_file_mode: basename
+    date_file_mode: modified
+  comment: Загружаем отчет Москвы
+- id: df_assign_1
+  type: df_assign
+  params:
+    operation: apply_transform
+    source_df: df_main
+    target_df: df_main
+    target_column: G
+    source_column: G
+    source_columns: []
+    transform:
+      type: split_first_word
+      params:
+        delimiter: ' '
+    prefix: ''
+    suffix: ''
+    expression: ''
+    value_type: decimal
+    calc_columns: []
+    column_mode: names
+    columns: []
+    lookup_df: df_lookup
+    source_key: ''
+    lookup_key: ''
+    lookup_value_column: ''
+    subset: []
+    how: any
+    treat_whitespace_as_empty: true
+    fill_value: ''
+    scope: listed
+  comment: 'Так как в названиях городов иппользуют дополнения в виде номеров и прочей
+    информации,
+
+    Возьмем только первое слово названия города для корректной групировки'
+- id: query_1
+  type: query
+  params:
+    source_df: df_main
+    target_df: df_main
+    query: F=="@Terbank"
+    column_reference: names
+    string_filters: []
+    query_variables: {}
+  comment: Выберем данные только по целевому тербанку
+- id: cast_column_type_1
+  type: cast_column_type
+  params:
+    source_df: df_main
+    column: ''
+    columns:
+    - B
+    - N
+    - V
+    target_type: datetime
+    errors_to_zero: true
+    use_decimal_objects: false
+  comment: Интересующие нас столбцы отчета с датами - преобразуем к типу DateTime
+- id: cast_column_type_2
+  type: cast_column_type
+  params:
+    source_df: df_main
+    column: ''
+    columns:
+    - R
+    - O
+    target_type: int
+    errors_to_zero: true
+    use_decimal_objects: false
+  comment: Для подсчета стоимости преобразуем к типу INT
+- id: query_2
+  type: query
+  params:
+    source_df: df_main
+    target_df: df_filtred1
+    query: N>='@otch_kvart'
+    column_reference: names
+    string_filters: []
+    query_variables: {}
+  comment: 'Выберем все заявленные с начала квартала лоты '
+- id: groupby_aggregate_1
+  type: groupby_aggregate
+  params:
+    source_df: df_filtred1
+    target_df: df_grouped1
+    group_keys:
+    - F
+    - G
+    aggregations: null
+    named_aggregations:
+      Ставок к покупке лотов в тек. квартале руб.:
+        column: R
+        func: sum
+      Ставок к покупке лотов в тек. квартале ед.:
+        column: R
+        func: count
+  comment: 'Группируем по ГОСб данные по фильтру Дата ставки >= начала отчетного квартала/
+
+    F - столбец тербанк - созраним для последующей итоговой группировки'
+- id: query_3
+  type: query
+  params:
+    source_df: df_main
+    target_df: df_filtred2
+    query: V>='@otch_kvart'
+    column_reference: names
+    string_filters: []
+    query_variables: {}
+  comment: 'Выберем все заявленные с начала квартала лоты '
+- id: groupby_aggregate_2
+  type: groupby_aggregate
+  params:
+    source_df: df_filtred2
+    target_df: df_grouped2
+    group_keys:
+    - F
+    - G
+    aggregations: null
+    named_aggregations:
+      Оплачено в тек. квартале руб.:
+        column: R
+        func: sum
+      Оплачено в тек. квартале ед.:
+        column: R
+        func: count
+  comment: Группируем по ГОСб данные по фильтру Оплачено >= начала отчетного квартала
+- id: query_4
+  type: query
+  params:
+    source_df: df_main
+    target_df: df_filtred3
+    query: B>='@otch_kvart'
+    column_reference: names
+    string_filters: []
+    query_variables: {}
+  comment: 'Выберем все оборудование включенное в реестр с начала квартала данные
+    по фильтру План\месяц '
+- id: groupby_aggregate_3
+  type: groupby_aggregate
+  params:
+    source_df: df_filtred3
+    target_df: df_grouped3
+    group_keys:
+    - F
+    - G
+    aggregations: null
+    named_aggregations:
+      Подготовлено в тек. квартале ед.:
+        column: O
+        func: count
+  comment: Группируем по ГОСб данные по фильтру План\месяц >= начала отчетного квартала
+- id: concat_dfs_1
+  type: concat_dfs
+  params:
+    target_df: df_concat
+    dataframes: []
+    name_glob: df_grouped*
+    axis: 0
+    ignore_index: true
+    join: outer
+- id: groupby_aggregate_5
+  type: groupby_aggregate
+  params:
+    source_df: df_concat
+    target_df: df_itogo2
+    group_keys:
+    - G
+    aggregations:
+      Ставок к покупке лотов в тек. квартале руб.: max
+      Ставок к покупке лотов в тек. квартале ед.: sum
+      Оплачено в тек. квартале руб.: sum
+      Оплачено в тек. квартале ед.: sum
+      Подготовлено в тек. квартале ед.: sum
+    named_aggregations: {}
+  comment: Сгруппируем отчет по Тербанку, что бы получить общие данные первый способ
+    после контакт
+- id: merge_1
+  type: merge
+  params:
+    left_df: df_grouped1
+    right_df: df_grouped2
+    how: outer
+    'on': []
+    left_on: []
+    right_on: []
+    indicator: false
+    suffixes:
+    - _x
+    - _y
+    result_df: df_merged
+  comment: второй способ склейки через merge
+- id: merge_2
+  type: merge
+  params:
+    left_df: df_merged
+    right_df: df_grouped3
+    how: outer
+    'on': []
+    left_on: []
+    right_on: []
+    indicator: false
+    suffixes:
+    - _x
+    - _y
+    result_df: df_merged
+- id: df_assign_2
+  type: df_assign
+  params:
+    operation: fill_empty
+    source_df: df_merged
+    target_df: df_merged
+    target_column: new_col
+    source_column: OLD
+    source_columns: []
+    prefix: ''
+    suffix: ''
+    expression: ''
+    value_type: decimal
+    calc_columns: []
+    condition: ''
+    transform:
+      type: split_first_word
+      params:
+        delimiter: ' '
+    coerce_to_numeric_on_error: false
+    column_mode: names
+    columns: []
+    lookup_df: df_lookup
+    source_key: ''
+    lookup_key: ''
+    lookup_value_column: ''
+    subset: []
+    how: any
+    treat_whitespace_as_empty: true
+    fill_value: 0
+    scope: all_columns
+  comment: Для совмещенного датафрейма, для пустых значений везде пропишем 0
+- id: groupby_aggregate_4
+  type: groupby_aggregate
+  params:
+    source_df: df_merged
+    target_df: df_itogo2
+    group_keys:
+    - F
+    aggregations:
+      Ставок к покупке лотов в тек. квартале руб.: sum
+      Ставок к покупке лотов в тек. квартале ед.: sum
+      Оплачено в тек. квартале руб.: sum
+      Оплачено в тек. квартале ед.: sum
+      Подготовлено в тек. квартале ед.: sum
+    named_aggregations: {}
+  comment: Сгруппируем отчет по Тербанку, что бы получить общие данные
+- id: merge_3
+  type: merge
+  params:
+    left_df: df_merged
+    right_df: df_itogo2
+    how: outer
+    'on': []
+    left_on: []
+    right_on: []
+    indicator: false
+    suffixes:
+    - _x
+    - _y
+    result_df: df_merged
+  comment: 'Прикрепляем строчку Итого '

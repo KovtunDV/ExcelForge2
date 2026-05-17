@@ -1,0 +1,198 @@
+from __future__ import annotations
+
+import os
+from datetime import datetime
+from typing import Any, Literal
+
+import pandas as pd
+
+from app.pipeline.context import RunContext
+from app.pipeline.registry import REGISTRY, StepDefinition
+from app.pipeline.schema import Step
+from app.steps.dialog_paths import apply_load_excel_runtime_dialogs
+from app.steps.util import get_required_param, latest_file, list_files
+
+
+HeaderMode = Literal["first_row", "letters", "numbers"]
+InputMode = Literal["file", "mask", "latest"]
+
+
+def _make_columns(mode: HeaderMode, df: pd.DataFrame) -> list[str]:
+    if mode == "letters":
+        cols = []
+        for i in range(len(df.columns)):
+            n = i
+            s = ""
+            while True:
+                n, r = divmod(n, 26)
+                s = chr(ord("A") + r) + s
+                if n == 0:
+                    break
+                n -= 1
+            cols.append(s)
+        return cols
+    if mode == "numbers":
+        return [str(i + 1) for i in range(len(df.columns))]
+    return [str(c) for c in df.columns]
+
+
+def _param_is_on(val: Any) -> bool:
+    # Local copy to avoid importing from steps.util (keep step self-contained).
+    if val is True:
+        return True
+    if val is False or val is None:
+        return False
+    s = str(val).strip().lower()
+    return s in ("1", "true", "yes", "on", "y")
+
+
+def _from_file_value(path: str, mode: Any) -> str:
+    m = str(mode or "basename").strip().lower()
+    if m in ("basename", "name", "filename"):
+        return os.path.basename(path)
+    if m in ("fullpath", "path", "full"):
+        return os.path.abspath(path)
+    raise ValueError("from_file_mode must be basename or fullpath")
+
+
+def _date_file_value(path: str, mode: Any) -> datetime:
+    m = str(mode or "modified").strip().lower()
+    if m in ("modified", "mtime", "updated", "update"):
+        ts = os.path.getmtime(path)
+    elif m in ("created", "ctime", "creation", "create"):
+        # On Windows this is creation time; on Unix it may be metadata change time.
+        ts = os.path.getctime(path)
+    else:
+        raise ValueError("date_file_mode must be modified or created")
+    return datetime.fromtimestamp(ts)
+
+
+def _read_one_excel(path: str, params: dict[str, Any]) -> pd.DataFrame:
+    sheet = params.get("sheet") or 0
+    dtype = params.get("dtype") or "str"
+    start_row = int(params.get("start_row", 1))
+    usecols = params.get("usecols") or None
+    header_mode: HeaderMode = str(params.get("header_mode", "first_row"))
+
+    # YAML uses 1-based start_row. Pandas skiprows counts from 0.
+    skiprows = max(0, start_row - 1)
+
+    if header_mode == "first_row":
+        header = 0
+    else:
+        header = None
+
+    df = pd.read_excel(
+        path,
+        sheet_name=sheet,
+        dtype=str if dtype == "str" else None,
+        header=header,
+        skiprows=skiprows,
+        usecols=usecols,
+        engine="openpyxl",
+    )
+    if header_mode in ("letters", "numbers"):
+        df.columns = _make_columns(header_mode, df)
+    return df
+
+
+def run_load_excel(ctx: RunContext, step: Step) -> None:
+    p = step.params
+    apply_load_excel_runtime_dialogs(ctx, p)
+    input_mode: InputMode = str(p.get("input_mode", "file"))
+
+    df_name = str(get_required_param(p, "dataframe"))
+    recursive = bool(p.get("recursive", False))
+    add_service_cols = _param_is_on(p.get("include_service_columns", False))
+    from_file_mode = p.get("from_file_mode", "basename")
+    date_file_mode = p.get("date_file_mode", "modified")
+
+    files: list[str] = []
+    if input_mode == "file":
+        f = str(get_required_param(p, "file_path"))
+        files = [f]
+    else:
+        directory = str(get_required_param(p, "directory"))
+        pattern = str(p.get("pattern", "*.xlsx"))
+        files = list_files(directory, pattern, recursive=recursive)
+        if input_mode == "latest":
+            lf = latest_file(files)
+            files = [lf] if lf else []
+
+    if not files:
+        raise ValueError("No input files found for load_excel.")
+
+    frames: list[pd.DataFrame] = []
+    schema_cols: list[str] | None = None
+    loaded_files = 0
+    for f in files:
+        try:
+            if not os.path.isfile(f):
+                raise FileNotFoundError(f)
+            df = _read_one_excel(f, p)
+            if add_service_cols:
+                df["_from_file"] = _from_file_value(f, from_file_mode)
+                df["_date_file"] = _date_file_value(f, date_file_mode)
+            cols = [str(c) for c in df.columns]
+            if schema_cols is None:
+                schema_cols = cols
+            else:
+                if cols != schema_cols:
+                    raise ValueError(
+                        f"Schema mismatch. Expected columns={schema_cols}, got={cols}"
+                    )
+            frames.append(df)
+            loaded_files += 1
+            ctx.logger.info(f"Loaded: {f} rows={len(df)} cols={len(df.columns)}")
+        except Exception as e:  # noqa: BLE001
+            ctx.logger.error(f"Skip file: {f}. Error: {e}")
+            continue
+
+    if not frames:
+        raise ValueError("All files failed to load; no data loaded.")
+
+    out = pd.concat(frames, ignore_index=True)
+    ctx.df_store[df_name] = out
+
+    if len(out) == 0:
+        ctx.logger.warn(f"Loaded 0 rows into {df_name}.")
+        confirm_fn = ctx.variables.get("confirm_continue_on_zero_rows")
+        if callable(confirm_fn):
+            ok = bool(confirm_fn(df_name))
+            if not ok:
+                ctx.cancel()
+
+    ctx.logger.info(
+        f"load_excel finished: files_ok={loaded_files}/{len(files)} -> {df_name} rows={len(out)}"
+    )
+
+
+def register_load_excel() -> None:
+    REGISTRY.register(
+        StepDefinition(
+            type="load_excel",
+            title="Загрузка Excel → DataFrame",
+            runner=run_load_excel,
+            default_params={
+                "input_mode": "mask",  # file|mask|latest
+                "directory": "",
+                "pattern": "*.xlsx",
+                "recursive": False,
+                "file_path": "",
+                "file_open_dialog": False,
+                "file_open_dialog_help": "Выберите файл для загрузки",
+                "directory_open_dialog": False,
+                "directory_open_dialog_help": "Выберите каталог с файлами Excel",
+                "sheet": "Sheet1",
+                "header_mode": "first_row",  # first_row|letters|numbers
+                "start_row": 1,
+                "usecols": "",
+                "dataframe": "df_main",
+                "dtype": "str",
+                "include_service_columns": False,
+                "from_file_mode": "basename",  # basename|fullpath
+                "date_file_mode": "modified",  # modified|created
+            },
+        )
+    )
+

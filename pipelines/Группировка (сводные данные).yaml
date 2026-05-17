@@ -1,0 +1,71 @@
+pipeline_version: 1
+name: Группировка (сводные данные)
+description: Пример создания сводных данных по таблице
+steps:
+- id: load_excel_1
+  type: load_excel
+  params:
+    input_mode: file
+    directory: ''
+    pattern: '*.xlsx'
+    recursive: false
+    file_path: C:/Users/kovtu.CODER/Excel_Mag/data/Результат.xlsx
+    sheet: Лист1
+    header_mode: first_row
+    start_row: 1
+    usecols: ''
+    dataframe: df_main
+    dtype: str
+- id: cast_column_type_1
+  type: cast_column_type
+  params:
+    source_df: df_main
+    column: Остаточная стоимость
+    columns: null
+    target_type: decimal
+    errors_to_zero: true
+    use_decimal_objects: false
+- id: groupby_aggregate_1
+  type: groupby_aggregate
+  params:
+    source_df: df_main
+    target_df: df_grouped
+    group_keys:
+    - Тип оборудования
+    aggregations:
+      Остаточная стоимость: sum
+  comment: Пример простой группировки
+- id: groupby_aggregate_2
+  type: groupby_aggregate
+  params:
+    source_df: df_main
+    target_df: df_grouped2
+    group_keys:
+    - Тип оборудования
+    aggregations: null
+    named_aggregations:
+      Количество_записей:
+        column: Серийный номер
+        func: size
+      Последняя_дата (сортировка строки, а не даты):
+        column: Дата ввода в эксплуатацию
+        func: max
+      Остаточная стоимость по группе:
+        column: Остаточная стоимость
+        func: sum
+  comment: Пример группировки с именованными режимом, сгруппированную колонку можно
+    определить
+- id: save_excel_1
+  type: save_excel
+  params:
+    source_df: df_main
+    out_dir: C:/Users/kovtu.CODER/ExcelForge/testdata
+    filename: result.xlsx
+    columns: []
+    template_path: ''
+    template_column_map: {}
+    sheet_name: Sheet1
+    start_row: 1
+    start_col: 1
+    split_by_column: Тип оборудования
+    split_filename_mask: out_{group}.xlsx

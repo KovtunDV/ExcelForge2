@@ -9,8 +9,8 @@ steps:
     directory: ''
     pattern: '*.xlsx'
     recursive: false
-    file_path: C:/Users/kovtu.CODER/Excel_Mag/data/Результат.xlsx
-    sheet: Лист1
+    file_path: C:/Users/kovtu.CODER/ExcelForge2/Демо_данные/Данные для разделения.xlsx
+    sheet: Sheet1
     header_mode: first_row
     start_row: 1
     usecols: ''
@@ -59,7 +59,7 @@ steps:
   type: save_excel
   params:
     source_df: df_main
-    out_dir: C:/Users/kovtu.CODER/ExcelForge/testdata
+    out_dir: C:/Users/kovtu.CODER/ExcelForge2/Демо_вывод/Разбитый по признаку
     filename: result.xlsx
     columns: []
     template_path: ''

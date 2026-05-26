@@ -1,0 +1,21 @@
+pipeline_version: 1
+name: Загрузить в глобальный контекст
+description: тест
+steps:
+- id: load_excel_1
+  type: load_excel
+  params:
+    input_mode: file
+    directory: ''
+    pattern: '*.xlsx'
+    recursive: false
+    file_path: C:/Users/kovtu.CODER/ExcelForge2/Демо_данные/Демо_ВПР_таблица1.xlsx
+    sheet: 0
+    header_mode: first_row
+    start_row: 1
+    usecols: ''
+    dataframe: glob_table1
+    dtype: str
+  comment: Загружаем таблицу в глобальный контекст, доступный из других паплайнов  /Демо_данные/Демо_ВПР_таблица1.xlsx.
+    Поск выполнения шага, глобальная таблица появиться в Общих настройках (Глобальный
+    контекст)

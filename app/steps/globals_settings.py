@@ -5,6 +5,7 @@ from typing import Any
 from app.pipeline.context import RunContext
 from app.pipeline.registry import REGISTRY, StepDefinition
 from app.pipeline.schema import Step
+from app.steps.dialog_paths import parse_filetypes_param
 from app.steps.util import param_is_on
 
 
@@ -61,7 +62,7 @@ def run_globals_settings(ctx: RunContext, step: Step) -> None:
         var = _norm_name(str(p.get("file_var") or "file_path"))
         askf = _require_tk_callable(ctx, "tk_askopenfilename", "file_open_dialog")
         title = str(p.get("file_open_dialog_help") or "Выберите файл")
-        filetypes = p.get("filetypes") or [("All files", "*.*")]
+        filetypes = parse_filetypes_param(p.get("filetypes")) or [("All files", "*.*")]
         r = askf(title=title, filetypes=filetypes)
         if not r:
             raise ValueError("Файл не выбран (file_open_dialog).")

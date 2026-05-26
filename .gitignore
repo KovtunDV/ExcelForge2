@@ -4,15 +4,17 @@ __pycache__/
 *$py.class
 *.so
 .Python
-.venv/
-venv/
-ENV/
-env/
 *.egg-info/
 .eggs/
 dist/
 build/
 *.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
 
 # IDE / OS
 .idea/
@@ -23,27 +25,34 @@ build/
 Thumbs.db
 desktop.ini
 
-# ExcelForge / local
-*.log
+# Test / lint caches
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 htmlcov/
 .coverage
+*.log
 
-# User data (optional local outputs)
+# ExcelForge — локальные данные (не публиковать)
+testdata/
 output/
 out/
-
-# Local demo / work data (not part of the app distribution)
 Демо_данные/
 Демо_вывод/
+обьединенка/
+объединение/
 Контроль остатков складов/
 Отчет по продажам/
-объединение/
+
+# Рабочие файлы Excel/Word
+*.xlsx
+*.xlsm
+*.xls
 *.docx
 ~$*
-con
 
-# Temp smoke scripts
+# Служебное / временное
+con
 _smoke_*.py
+_remote_files.txt
+_index_files.txt

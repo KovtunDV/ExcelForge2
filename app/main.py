@@ -1,30 +1,36 @@
 from __future__ import annotations
 
-import tkinter as tk
-from tkinter import ttk
+import sys
 
-from app.ui.app_window import AppWindow
-from app.ui.app_icon import apply_app_icon
+from PySide6.QtWidgets import QApplication
+
+from app.ui_qt.app_icon import application_icon
+from app.ui_qt.app_window import AppWindow
 from app.steps import register_all_steps
+
+_APP_STYLE = """
+QTabWidget::pane { border: 1px solid #c0c0c0; }
+QGroupBox { font-weight: bold; margin-top: 8px; padding-top: 8px; }
+QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }
+QSplitter::handle { width: 4px; background: #e0e0e0; }
+"""
 
 
 def main() -> None:
     register_all_steps()
 
-    root = tk.Tk()
-    root.title("ExcelForge")
-    root.geometry("1200x750")
-    root.minsize(1000, 650)
-    apply_app_icon(root)
+    app = QApplication(sys.argv)
+    icon = application_icon()
+    if not icon.isNull():
+        app.setWindowIcon(icon)
+    app.setStyleSheet(_APP_STYLE)
 
-    style = ttk.Style(root)
-    if "clam" in style.theme_names():
-        style.theme_use("clam")
-
-    AppWindow(root).pack(fill="both", expand=True)
-    root.mainloop()
+    window = AppWindow()
+    if not icon.isNull():
+        window.setWindowIcon(icon)
+    window.show()
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":
     main()
-

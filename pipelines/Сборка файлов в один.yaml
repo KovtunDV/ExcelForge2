@@ -6,7 +6,7 @@ steps:
   type: load_excel
   params:
     input_mode: mask
-    directory: C:/Users/kovtu.CODER/ExcelForge/Демо_вывод/Разбитый по признаку
+    directory: C:/Users/kovtu.CODER/ExcelForge2/Демо_вывод/Разбитый по признаку
     directory_open_dialog: false
     pattern: out_*.xlsx
     recursive: false
@@ -21,7 +21,7 @@ steps:
   type: save_excel
   params:
     source_df: df_main
-    out_dir: C:/Users/kovtu.CODER/ExcelForge/Демо_вывод/Обьединенный файл
+    out_dir: C:/Users/kovtu.CODER/ExcelForge2/Демо_вывод/Обьединенный файл
     filename: result.xlsx
     columns: []
     template_path: ''

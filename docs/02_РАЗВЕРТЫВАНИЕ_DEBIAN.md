@@ -16,7 +16,7 @@
 | ОС | Debian 12 (Bookworm) — возможна установка Python 3.9 отдельно (см. §4.2) |
 | Python | **3.9.x** (обязательно) |
 | RAM | от 4 ГБ |
-| GUI | X11 или Wayland с доступом к дисплею (для Tkinter) |
+| GUI | X11 или Wayland с доступом к дисплею (PySide6 / Qt) |
 | Excel | не требуется; работа с `.xlsx` через openpyxl |
 
 ### Совместимость кода с Python 3.9
@@ -57,7 +57,7 @@ ExcelForge/
 
 ### 4.1. Debian 11 (Bullseye)
 
-Обновите индекс пакетов и установите Python 3.9, venv и **Tkinter** (без `python3-tk` GUI не запустится):
+Обновите индекс пакетов и установите Python 3.9 и venv. GUI использует **PySide6** (устанавливается через `pip` из `requirements.txt`):
 
 ```bash
 sudo apt update
@@ -65,9 +65,8 @@ sudo apt install -y \
   python3.9 \
   python3.9-venv \
   python3.9-dev \
-  python3-tk \
-  tk-dev \
-  libtk8.6
+  libxcb-xinerama0 \
+  libxkbcommon-x11-0
 ```
 
 Проверка:
@@ -75,8 +74,6 @@ sudo apt install -y \
 ```bash
 python3.9 --version
 # Ожидается: Python 3.9.x
-
-python3.9 -c "import tkinter; print('tkinter OK')"
 ```
 
 ### 4.2. Debian 12 (Bookworm) и новее
@@ -88,11 +85,11 @@ python3.9 -c "import tkinter; print('tkinter OK')"
 1. **Рекомендуется для продакшена:** развернуть на **Debian 11** или в контейнере `debian:bullseye`.
 2. **На Bookworm:** собрать 3.9 через [pyenv](https://github.com/pyenv/pyenv) или использовать отдельный хост с Bullseye.
 
-Пример установки системных библиотек для Tkinter на Bookworm (при наличии своего `python3.9`):
+Пример установки системных библиотек Qt на Bookworm (при наличии своего `python3.9`):
 
 ```bash
 sudo apt update
-sudo apt install -y python3-tk tk-dev libtk8.6 build-essential \
+sudo apt install -y libxcb-xinerama0 libxkbcommon-x11-0 build-essential \
   libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev \
   libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
 ```
@@ -174,7 +171,7 @@ python -m app.main
 
 ### 6.3. Запуск без GUI (только пайплайны)
 
-Штатного CLI-режима «без Tkinter» в поставке нет: точка входа `app.main` создаёт окно. Для серверной автоматизации можно вызывать исполнитель пайплайна из Python (кастомный скрипт) — это выходит за рамки базовой установки. Для интерактивной работы нужен дисплей.
+Штатного CLI-режима «без GUI» в поставке нет: точка входа `app.main` создаёт окно PySide6. Для серверной автоматизации можно вызывать исполнитель пайплайна из Python (кастомный скрипт) — это выходит за рамки базовой установки. Для интерактивной работы нужен дисплей.
 
 ---
 
@@ -249,19 +246,22 @@ python -m pip install -r requirements.txt
 
 ## 11. Устранение неполадок
 
-### `ModuleNotFoundError: No module named 'tkinter'`
+### `ModuleNotFoundError: No module named 'PySide6'`
 
 ```bash
-sudo apt install python3-tk
-# для venv на 3.9 иногда нужен системный tk, привязанный к той же версии:
-sudo apt install python3.9-tk   # если пакет есть в репозитории
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
+
+### Ошибка загрузки Qt / `Could not load the Qt platform plugin`
+
+Установите системные библиотеки X11/Wayland (см. раздел 4) и проверьте `echo $DISPLAY`.
 
 ### `python3.9: command not found`
 
 На Debian 12 установите Bullseye-контейнер, pyenv или перенесите хост на Debian 11.
 
-### Ошибка дисплея / `_tkinter.TclError: couldn't connect to display`
+### Ошибка дисплея / Qt platform plugin
 
 Нет графической сессии или не задан `DISPLAY`. Запускайте локально, через `ssh -X`, или VNC.
 
@@ -282,7 +282,7 @@ sudo apt install python3.9-tk   # если пакет есть в репозит
 ## 12. Контрольный чек-лист
 
 - [ ] `python3.9 --version` → 3.9.x
-- [ ] Установлен `python3-tk`, импорт `tkinter` успешен
+- [ ] Установлен PySide6 (`pip install -r requirements.txt`), импорт `PySide6` успешен
 - [ ] Создан venv: `python3.9 -m venv .venv`
 - [ ] `pip install -r requirements.txt` без ошибок
 - [ ] `python -m app.main` открывает окно (при наличии DISPLAY)

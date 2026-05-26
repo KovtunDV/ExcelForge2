@@ -2,6 +2,21 @@ pipeline_version: 1
 name: Пример ВПР таблиц
 description: тест
 steps:
+- id: globals_settings_1
+  type: globals_settings
+  params:
+    values:
+      directory: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data
+    directory_open_dialog: false
+    directory_var: directory
+    directory_open_dialog_help: Выберите каталог
+    directory_initial: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data
+    file_open_dialog: false
+    file_var: file_path
+    file_open_dialog_help: Выберите файл
+    filetypes:
+    - - All files
+      - '*.*'
 - id: load_excel_1
   type: load_excel
   params:
@@ -9,7 +24,7 @@ steps:
     directory: ''
     pattern: '*.xlsx'
     recursive: false
-    file_path: C:/Users/kovtu.CODER/ExcelForge2/Демо_данные/Демо_ВПР_таблица1.xlsx
+    file_path: '@directory/Демо_ВПР_таблица1.xlsx'
     sheet: 0
     header_mode: first_row
     start_row: 1
@@ -74,7 +89,7 @@ steps:
   type: save_excel
   params:
     source_df: rezuilVPR
-    out_dir: C:/Users/kovtu.CODER/ExcelForge2/Демо_вывод
+    out_dir: '@directory/Output_data'
     filename: Пример ВПР таблиц Результат.xlsx
     columns: []
     template_path: ''

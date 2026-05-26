@@ -3,6 +3,22 @@ name: Групировка данных поиск дублей
 description: Фильтрация данных по условиям, текстовые фильтры с регулярными выражениями
   склейка датафреймов
 steps:
+- id: globals_settings_1
+  type: globals_settings
+  params:
+    values:
+      directory: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data
+    directory_open_dialog: false
+    directory_var: directory
+    directory_open_dialog_help: Выберите каталог
+    directory_initial: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data
+    file_open_dialog: false
+    file_var: file_path
+    file_open_dialog_help: Выберите файл
+    filetypes:
+    - - All files
+      - '*.*'
+  comment: Установить каталог с данными для всего паплайна
 - id: load_excel_1
   type: load_excel
   params:
@@ -10,7 +26,7 @@ steps:
     directory: ''
     pattern: '*.xlsx'
     recursive: false
-    file_path: C:/Users/kovtu.CODER/ExcelForge2/Демо_данные/Данные с дублями для чистки.xlsx
+    file_path: '@directory/Данные с дублями для чистки.xlsx'
     sheet: 0
     header_mode: first_row
     start_row: 1
@@ -85,7 +101,7 @@ steps:
   type: save_excel
   params:
     source_df: rusult
-    out_dir: C:/Users/kovtu.CODER/ExcelForge2/Демо_вывод
+    out_dir: '@directory/Output_data'
     filename: Пример вывода отсортированных Групировка данных поиск дублей Результат.xlsx
     columns: []
     template_path: ''

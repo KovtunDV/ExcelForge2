@@ -44,12 +44,19 @@ out/
 Контроль остатков складов/
 Отчет по продажам/
 
-# Рабочие файлы Excel/Word
+# Рабочие файлы Excel/Word (вне каталога pipelines)
 *.xlsx
 *.xlsm
 *.xls
 *.docx
 ~$*
+
+# Демо-данные вместе с пайплайнами — публикуются в репозитории
+!pipelines/
+!pipelines/**/
+!pipelines/**/*.xlsx
+!pipelines/**/*.xlsm
+!pipelines/**/*.xls
 
 # Служебное / временное
 con

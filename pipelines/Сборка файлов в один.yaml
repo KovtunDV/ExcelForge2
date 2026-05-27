@@ -6,7 +6,7 @@ steps:
   type: load_excel
   params:
     input_mode: mask
-    directory: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data/In_data
+    directory: ./pipelines/Demo_data/In_data
     directory_open_dialog: false
     pattern: out_*.xlsx
     recursive: false
@@ -21,7 +21,7 @@ steps:
   type: save_excel
   params:
     source_df: df_main
-    out_dir: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data/Output_data
+    out_dir: ./pipelines/Demo_data/Output_data
     filename: result_auto.xlsx
     columns: []
     template_path: ''

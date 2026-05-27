@@ -7,11 +7,11 @@ steps:
   type: globals_settings
   params:
     values:
-      directory: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data
+      directory: ./pipelines/Demo_data
     directory_open_dialog: false
     directory_var: directory
     directory_open_dialog_help: Выберите каталог
-    directory_initial: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data
+    directory_initial: ./pipelines/Demo_data
     file_open_dialog: false
     file_var: file_path
     file_open_dialog_help: Выберите файл

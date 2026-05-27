@@ -6,7 +6,7 @@ steps:
   type: load_excel
   params:
     input_mode: mask
-    directory: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data/In_data
+    directory: ./pipelines/Demo_data/In_data
     directory_open_dialog: false
     pattern: out_*.xlsx
     recursive: false
@@ -22,7 +22,7 @@ steps:
   params:
     source_df: df_main
     file_open_dialog: true
-    out_dir: C:/Users/kovtu.CODER/ExcelForge2/Демо_вывод/Обьединенный файл
+    out_dir: null
     filename: result.xlsx
     columns: []
     template_path: ''

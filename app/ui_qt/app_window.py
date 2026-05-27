@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import os
-
 from PySide6.QtWidgets import QMainWindow, QTabWidget
 
-from app.settings import load_settings
+from app.settings import effective_pipelines_dir, load_settings
 from app.ui_qt.builder_view import BuilderView
 from app.ui_qt.font_utils import apply_font_to_application
 from app.ui_qt.runner_view import RunnerView
@@ -21,12 +19,14 @@ class AppWindow(QMainWindow):
         tabs = QTabWidget()
         self.setCentralWidget(tabs)
 
-        default_pipelines_dir = os.path.join(os.getcwd(), "pipelines")
-        os.makedirs(default_pipelines_dir, exist_ok=True)
+        pipelines_dir = effective_pipelines_dir()
 
-        self.runner = RunnerView(pipelines_dir=default_pipelines_dir)
-        self.builder = BuilderView(pipelines_dir=default_pipelines_dir)
-        self.settings = SettingsView(apply_font=self._apply_font)
+        self.runner = RunnerView(pipelines_dir=pipelines_dir)
+        self.builder = BuilderView(pipelines_dir=pipelines_dir)
+        self.settings = SettingsView(
+            apply_font=self._apply_font,
+            on_pipelines_dir=self._apply_pipelines_dir,
+        )
 
         tabs.addTab(self.runner, "Runner (выполнение)")
         tabs.addTab(self.builder, "Builder (конструктор)")
@@ -40,3 +40,7 @@ class AppWindow(QMainWindow):
 
     def _apply_font(self, family: str, size: int) -> None:
         apply_font_to_application(family, size)
+
+    def _apply_pipelines_dir(self, path: str) -> None:
+        self.runner.set_pipelines_dir(path)
+        self.builder.set_pipelines_dir(path)

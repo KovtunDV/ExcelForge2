@@ -130,6 +130,10 @@ class RunnerView(QWidget):
         left_w = min(total - 180, max(splitter.widget(0).minimumWidth(), int(total * 0.32) + char_w * 15))
         splitter.setSizes([left_w, max(180, total - left_w)])
 
+    def set_pipelines_dir(self, path: str) -> None:
+        self.edit_dir.setText(path)
+        self.refresh_list()
+
     def _pipelines_path(self) -> str:
         return self.edit_dir.text().strip() or os.getcwd()
 

@@ -241,6 +241,10 @@ class BuilderView(QWidget):
         self._update_file_label()
         self._dirty = False
 
+    def set_pipelines_dir(self, path: str) -> None:
+        self.pipelines_dir = path
+        os.makedirs(self.pipelines_dir, exist_ok=True)
+
     def _mark_dirty(self) -> None:
         if not self._suppress_dirty:
             self._dirty = True

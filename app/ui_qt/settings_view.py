@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import os
 from typing import Callable
 
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
+    QFileDialog,
     QCheckBox,
     QComboBox,
     QFormLayout,
@@ -26,18 +27,56 @@ from app.pipeline.global_context import (
     global_df_summary,
     reconcile_globals_from_sessions,
 )
-from app.settings import AppSettings, load_settings, save_settings
+from app.settings import (
+    AppSettings,
+    bundled_pipelines_dir,
+    effective_pipelines_dir,
+    load_settings,
+    normalize_pipelines_dir,
+    save_settings,
+)
 from app.ui_qt.font_utils import list_font_families, make_app_font
 
 
 class SettingsView(QWidget):
-    def __init__(self, parent=None, *, apply_font: Callable[[str, int], None] | None = None) -> None:
+    def __init__(
+        self,
+        parent=None,
+        *,
+        apply_font: Callable[[str, int], None] | None = None,
+        on_pipelines_dir: Callable[[str], None] | None = None,
+    ) -> None:
         super().__init__(parent)
         self._apply_font = apply_font or (lambda _f, _s: None)
+        self._on_pipelines_dir = on_pipelines_dir or (lambda _p: None)
         self._s = load_settings()
 
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
+
+        lf_pipelines = QGroupBox("Каталог пайплайнов")
+        pipelines_layout = QVBoxLayout(lf_pipelines)
+        pipelines_layout.addWidget(
+            QLabel(
+                "Папка с YAML-сценариями для Runner и Builder. "
+                "Пустое поле — каталог pipelines в папке запуска программы."
+            )
+        )
+        pipelines_row = QHBoxLayout()
+        self.edit_pipelines_dir = QLineEdit()
+        self.edit_pipelines_dir.setPlaceholderText(bundled_pipelines_dir())
+        saved_dir = normalize_pipelines_dir(self._s.pipelines_dir)
+        if saved_dir:
+            self.edit_pipelines_dir.setText(saved_dir)
+        pipelines_row.addWidget(self.edit_pipelines_dir, stretch=1)
+        btn_browse_pipelines = QPushButton("Обзор…")
+        btn_browse_pipelines.clicked.connect(self._pick_pipelines_dir)
+        pipelines_row.addWidget(btn_browse_pipelines)
+        btn_default_pipelines = QPushButton("По умолчанию")
+        btn_default_pipelines.clicked.connect(self._reset_pipelines_dir_field)
+        pipelines_row.addWidget(btn_default_pipelines)
+        pipelines_layout.addLayout(pipelines_row)
+        root.addWidget(lf_pipelines)
 
         lf_preview = QGroupBox("Предпросмотр DataFrame")
         form_p = QFormLayout(lf_preview)
@@ -176,6 +215,43 @@ class SettingsView(QWidget):
         size = max(6, min(int(self.spin_font_size.value()), 48))
         return fam, size
 
+    def _pick_pipelines_dir(self) -> None:
+        start = self.edit_pipelines_dir.text().strip() or effective_pipelines_dir()
+        path = QFileDialog.getExistingDirectory(self, "Каталог пайплайнов", start)
+        if path:
+            self.edit_pipelines_dir.setText(os.path.abspath(path))
+
+    def _reset_pipelines_dir_field(self) -> None:
+        self.edit_pipelines_dir.clear()
+
+    def _resolve_pipelines_dir_for_ui(self) -> tuple[str, str]:
+        """(путь для Runner/Builder, значение для сохранения в settings.json)."""
+        raw = self.edit_pipelines_dir.text().strip()
+        if not raw:
+            return bundled_pipelines_dir(), ""
+        path = normalize_pipelines_dir(raw)
+        return path, path
+
+    def _apply_pipelines_dir(self) -> bool:
+        path, _ = self._resolve_pipelines_dir_for_ui()
+        if not os.path.isdir(path):
+            btn = QMessageBox.question(
+                self,
+                "ExcelForge",
+                f"Каталог не существует:\n{path}\n\nСоздать?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if btn != QMessageBox.StandardButton.Yes:
+                return False
+            try:
+                os.makedirs(path, exist_ok=True)
+            except OSError as e:
+                QMessageBox.warning(self, "ExcelForge", f"Не удалось создать каталог:\n{e}")
+                return False
+        self._on_pipelines_dir(path)
+        return True
+
     def _refresh_sample_font(self) -> None:
         fam, size = self._current_font_settings()
         font = make_app_font(fam, size)
@@ -190,6 +266,8 @@ class SettingsView(QWidget):
             w.setFont(font)
 
     def _apply(self) -> None:
+        if not self._apply_pipelines_dir():
+            return
         fam, size = self._current_font_settings()
         self._refresh_sample_font()
         self._apply_font(fam, size)
@@ -200,18 +278,30 @@ class SettingsView(QWidget):
             self.spin_preview.setValue(preview_settings.get_preview_rows())
 
     def _save(self) -> None:
-        self._apply()
         fam, size = self._current_font_settings()
+        self._refresh_sample_font()
+        self._apply_font(fam, size)
+        try:
+            preview_settings.set_preview_rows(self.spin_preview.value())
+        except Exception:
+            preview_settings.set_preview_rows(10)
+            self.spin_preview.setValue(preview_settings.get_preview_rows())
+        if not self._apply_pipelines_dir():
+            return
+        _, stored_pipelines = self._resolve_pipelines_dir_for_ui()
         s = AppSettings(
             preview_rows=preview_settings.get_preview_rows(),
             font_family=fam,
             font_size=size,
+            pipelines_dir=stored_pipelines,
         )
         save_settings(s)
+        self._s = s
         QMessageBox.information(self, "ExcelForge", "Настройки сохранены.")
 
     def _reset(self) -> None:
         self.spin_preview.setValue(10)
         self.cmb_font.setCurrentIndex(0)
         self.spin_font_size.setValue(10)
+        self._reset_pipelines_dir_field()
         self._save()

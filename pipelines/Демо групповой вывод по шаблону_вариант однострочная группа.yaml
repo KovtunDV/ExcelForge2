@@ -1,0 +1,38 @@
+pipeline_version: 1
+name: Демо групповой вывод по шаблону_вариант однострочная группа
+description: Демо — однострочный режим формы (group_template_export без table_start_row/table_columns)
+steps:
+- id: globals_1
+  type: globals_settings
+  params:
+    values:
+      demo_out: pipelines/Demo_data/Output_data/group_export_form
+      period: 2025-Q1
+- id: load_1
+  type: load_excel
+  params:
+    input_mode: file
+    file_path: pipelines/Demo_data/In_data/group_export_lines.xlsx
+    sheet: Sheet1
+    header_mode: first_row
+    start_row: 1
+    dataframe: df_lines
+    dtype: str
+- id: export_1
+  type: group_template_export
+  params:
+    source_df: df_lines
+    group_by: Отдел
+    out_dir: '@demo_out'
+    template_path: pipelines/Demo_data/Templates/group_export_form_template.xlsx
+    filename:
+      prefix: Форма_
+      suffix: _@period
+      extension: .xlsx
+    filename_inc: prefix
+    sheet_name: Sheet1
+    aggregations:
+    - name: qty
+      op: sum
+      column: Количество
+    skip_empty_groups: true

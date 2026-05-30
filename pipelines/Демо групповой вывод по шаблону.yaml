@@ -1,0 +1,65 @@
+pipeline_version: 1
+name: Демо групповой вывод по шаблону
+description: Демо — групповой вывод по шаблону Excel (group_template_export)
+steps:
+- id: globals_1
+  type: globals_settings
+  params:
+    values:
+      demo_out: pipelines/Demo_data/Output_data/group_export
+      period: 2025-Q1
+      date_stamp:
+        system: datetime
+        format: '%d.%m.%Y'
+        days_offset: 3
+- id: load_1
+  type: load_excel
+  params:
+    input_mode: file
+    file_path: pipelines/Demo_data/In_data/group_export_lines.xlsx
+    sheet: Sheet1
+    header_mode: first_row
+    start_row: 1
+    dataframe: df_lines
+    dtype: str
+- id: export_1
+  type: group_template_export
+  params:
+    source_df: df_lines
+    group_by: Отдел
+    out_dir: '@demo_out'
+    template_path: pipelines/Demo_data/Templates/group_export_template.xlsx
+    filename:
+      prefix: Отчёт_
+      suffix: _@period
+      extension: .xlsx
+    sheet_name: Sheet1
+    table_start_row: 9
+    table_template_row: 7
+    table_columns:
+    - df_col: Товар
+      excel_col: 2
+    - df_col: Количество
+      excel_col: 3
+    - df_col: Цена
+      excel_col: 4
+    - df_col: Итого
+      excel_col: 5
+    row_increment:
+      enabled: true
+      excel_col: 1
+      start: 1
+    aggregations:
+    - name: total_qty
+      op: sum
+      column: Количество
+    - name: total_sum
+      op: sum
+      column: Итого
+    - name: to_nds
+      op: expr
+      expression: total_qty * 0.5
+    - name: lines_count
+      op: count
+    skip_empty_groups: true
+  comment: '123'

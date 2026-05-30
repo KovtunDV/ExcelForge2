@@ -486,6 +486,10 @@ class BuilderView(QWidget):
             self.step_path_tools.show()
             self.btn_pick_out_dir.show()
             self.btn_pick_template.show()
+        elif step_type == "group_template_export":
+            self.step_path_tools.show()
+            self.btn_pick_out_dir.show()
+            self.btn_pick_template.show()
         elif step_type == "globals_settings":
             self.step_path_tools.show()
             self.btn_pick_globals_dir.show()
@@ -576,7 +580,7 @@ class BuilderView(QWidget):
 
     def _pick_save_excel_out_dir(self) -> None:
         step = self._current_step()
-        if not step or step.type != "save_excel":
+        if not step or step.type not in ("save_excel", "group_template_export"):
             return
         try:
             params = self._read_params_text()
@@ -597,7 +601,7 @@ class BuilderView(QWidget):
 
     def _pick_save_excel_template(self) -> None:
         step = self._current_step()
-        if not step or step.type != "save_excel":
+        if not step or step.type not in ("save_excel", "group_template_export"):
             return
         try:
             params = self._read_params_text()

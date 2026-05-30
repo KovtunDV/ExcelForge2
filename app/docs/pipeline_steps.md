@@ -106,7 +106,8 @@ params:
 
 | Параметр | Описание |
 |----------|----------|
-| `values` | Словарь `{ "@var": value }` или `{ "var": value }`. Значения могут быть строками, числами, списками и т.д. |
+| `values` | Словарь `{ "@var": value }` или `{ "var": value }`. Значения могут быть строками, числами, списками и т.д. Также допускается **системное значение** — вложенный словарь `{ system: date \| time \| datetime, format: "...", days_offset: N }`. |
+| `system_values` | Список системных переменных: `{ var, type, format?, days_offset? }`. `type`: `date`, `time`, `datetime`. `format` — шаблон `strftime` (Python). `days_offset` — смещение даты на ±N дней (для `date` и `datetime`). |
 | `directory_open_dialog` | `on/off`: показать диалог выбора каталога и сохранить результат в переменную `directory_var`. |
 | `directory_var` | Имя переменной для каталога (например `directory_n` или `@directory_n`). |
 | `directory_open_dialog_help` | Заголовок диалога выбора каталога. |
@@ -116,6 +117,18 @@ params:
 | `file_open_dialog_help` | Заголовок диалога выбора файла. |
 | `filetypes` | `filetypes` для Tk (опционально). |
 
+### Системные дата и время
+
+Текущие дата/время берутся из системы (локальное время ОС). Формат задаётся через `format` в нотации **`strftime`** (как в Python).
+
+| `type` / `system` | По умолчанию `format` | `days_offset` |
+|-------------------|----------------------|---------------|
+| `date` | `%Y-%m-%d` | да |
+| `time` | `%H:%M:%S` | нет |
+| `datetime` | `%Y-%m-%d %H:%M:%S` | да |
+
+Примеры форматов: `%d.%m.%Y` → `23.05.2025`, `%Y%m%d` → `20250523`, `%H:%M` → `14:30`.
+
 ### Пример
 
 ```yaml
@@ -124,8 +137,29 @@ params:
   values:
     directory_n: "C:/target_catalog"
     value1: "глобальное_значение1"
+  system_values:
+    - var: report_date
+      type: date
+      format: "%d.%m.%Y"
+      days_offset: -1          # вчера
+    - var: report_time
+      type: time
+      format: "%H:%M"
+    - var: stamp
+      type: datetime
+      format: "%Y%m%d_%H%M%S"
   directory_open_dialog: off
   file_open_dialog: off
+```
+
+Системное значение можно задать и внутри `values`:
+
+```yaml
+values:
+  tomorrow:
+    system: date
+    format: "%Y-%m-%d"
+    days_offset: 1
 ```
 
 Использование в других шагах:
@@ -284,6 +318,106 @@ params:
   split_by_column: ""
   split_filename_mask: "{group}.xlsx"
 ```
+
+---
+
+## group_template_export
+
+**Назначение:** групповой вывод DataFrame в **отдельные Excel-файлы по шаблону**. Для каждой группы по столбцу(ам) `group_by` создаётся копия шаблона с подстановкой значений группы, строк таблицы (с **вставкой строк** при нескольких позициях), агрегатов и глобальных переменных `@var`.
+
+**Однострочный режим формы:** если не заданы `table_start_row` и `table_columns` (или `single_row_mode: true`), шаблон заполняется для **каждой строки** DF отдельным файлом. Плейсхолдеры `{{row.ИмяКолонки}}` подставляются в **любых ячейках** листа (как `{{group.*}}`). К имени файла по умолчанию добавляется номер `{inc}` в **начале** (`filename_inc: prefix`); можно указать `suffix` или отключить (`false`).
+
+Отличие от `save_excel` + `split_by_column`: поддержка плейсхолдеров в ячейках, динамическая таблица, именованные агрегаты с выражениями.
+
+### Плейсхолдеры в шаблоне
+
+| Маркер | Источник |
+|--------|----------|
+| `{{group.ИмяКолонки}}` | Значение столбца группировки |
+| `{{row.ИмяКолонки}}` | Значение в строке таблицы |
+| `{{agg.имя}}` | Результат из `aggregations` |
+| `{{@var}}` | Глобальная переменная из `globals_settings` |
+| `{{inc}}` / `{{inc:1}}` | Порядковый номер строки (в таблице — в строке таблицы; в однострочном режиме — по строке DF) |
+
+### Режимы работы
+
+| Режим | Условие | Результат |
+|-------|---------|-----------|
+| **Таблица** | Заданы `table_start_row` и/или `table_columns` | Один файл на группу; строки вставляются в таблицу шаблона |
+| **Форма (одна строка)** | Пустые `table_start_row` и `table_columns`, либо `single_row_mode: true` | Один файл на **каждую строку**; `{{row.*}}` по всему листу |
+
+### Параметры (`params`)
+
+| Параметр | Описание |
+|----------|----------|
+| `source_df` | Исходный DataFrame. |
+| `group_by` | Строка или список столбцов группировки. |
+| `group_separator` | Разделитель частей имени группы в имени файла (несколько `group_by`). |
+| `out_dir` | Каталог для выходных файлов. |
+| `template_path` | Путь к `.xlsx` шаблону. |
+| `filename` | Словарь `{prefix, suffix, extension, group_separator}` или строка-маска с `{group}`. |
+| `filename_mask` | Альтернатива: `"Report_{group}.xlsx"`. |
+| `prefix`, `suffix`, `extension` | Можно задать на верхнем уровне `params`. |
+| `sheet_name` | Лист шаблона; пусто — активный. |
+| `table_start_row` | Первая строка **вывода** данных (1-based). Пусто — однострочный режим формы. |
+| `table_template_row` | Строка-**образец** в шаблоне: откуда копируются шрифт, границы, заливка, `number_format` и высота строки на каждую строку группы. Может совпадать с `table_start_row` или быть отдельной (например скрытая строка-макет выше таблицы). |
+| `table_columns` | Список `{df_col, excel_col}` — запись колонок DF в номера колонок Excel. Пусто — однострочный режим формы. |
+| `single_row_mode` | `true` — принудительно однострочный режим (даже если заданы параметры таблицы). |
+| `filename_inc` | В однострочном режиме: размещение номера строки в имени файла. `prefix` (по умолчанию) — `{inc}_` в начале; `suffix` — `_{inc}` в конце (перед расширением); `false` — не добавлять. Словарь `{enabled, position}` с `position`: `prefix` \| `suffix`. В маске `filename_mask` доступен `{inc}`. |
+| `static_fields` | Список `{cell: "B2", value: "..."}` с плейсхолдерами. |
+| `aggregations` | Список `{name, op, column?, expression?, format?}`; `op`: `sum`, `count`, `min`, `max`, `avg`, `expr`. Числа в колонках распознаются и с точкой (`34.55`), и с запятой (`34,55`). |
+| `row_increment` | `{enabled, excel_col, start}` — номер п/п в колонку (или маркер `{{inc}}`). |
+| `row_filter` | Выражение фильтрации (как в `filtration`) перед группировкой. |
+| `sort_within_group` | `{column, ascending}` — сортировка строк внутри группы. |
+| `skip_empty_groups` | `true` — не создавать файл для пустых групп. |
+| `directory_open_dialog` | Диалог выбора `out_dir` (GUI). |
+| `template_open_dialog` | Диалог выбора `template_path` (GUI). |
+
+### Пример
+
+```yaml
+type: group_template_export
+params:
+  source_df: df_lines
+  group_by: "Отдел"
+  out_dir: "@output_dir"
+  template_path: "C:/templates/act.xlsx"
+  filename:
+    prefix: "Акт_"
+    suffix: "_@period"
+  sheet_name: "Sheet1"
+  table_start_row: 9
+  table_columns:
+    - { df_col: "Товар", excel_col: 2 }
+    - { df_col: "Количество", excel_col: 3 }
+  row_increment:
+    enabled: true
+    excel_col: 1
+    start: 1
+  aggregations:
+    - { name: total_qty, op: sum, column: "Количество" }
+    - { name: total_sum, op: expr, expression: "total_qty * 50" }
+    - { name: lines_count, op: count }
+```
+
+### Пример (однострочный режим формы)
+
+```yaml
+type: group_template_export
+params:
+  source_df: df_lines
+  group_by: "Отдел"
+  out_dir: "@output_dir"
+  template_path: "C:/templates/form.xlsx"
+  filename:
+    prefix: "Акт_"
+  filename_inc: prefix   # 1_Акт_Sales.xlsx; suffix → Акт_Sales_1.xlsx; false — без номера
+  # table_start_row и table_columns не заданы — режим формы
+  aggregations:
+    - { name: qty, op: sum, column: "Количество" }
+```
+
+Демо-пайплайн: `pipelines/Демо групповой вывод по шаблону.yaml`, шаблон: `pipelines/Demo_data/Templates/group_export_template.xlsx`.
 
 ---
 

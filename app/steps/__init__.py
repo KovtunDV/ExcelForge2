@@ -7,6 +7,7 @@ from app.steps.drop_rows import register_drop_rows
 from app.steps.filtration_rows import register_filtration_rows
 from app.steps.transpose_df import register_transpose_df
 from app.steps.groupby_aggregate import register_groupby_aggregate
+from app.steps.group_template_export import register_group_template_export
 from app.steps.globals_settings import register_globals_settings
 from app.steps.load_excel import register_load_excel
 from app.steps.merge_dfs import register_merge
@@ -31,6 +32,7 @@ def register_all_steps() -> None:
     register_concat_dfs()
     register_rename_columns()
     register_groupby_aggregate()
+    register_group_template_export()
     register_sort_list_output()
     register_df_assign()
 

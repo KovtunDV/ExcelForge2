@@ -129,3 +129,29 @@ def apply_save_excel_runtime_dialogs(ctx: RunContext, p: dict[str, Any]) -> None
         if not d:
             raise ValueError("Каталог не выбран (directory_open_dialog).")
         p["out_dir"] = d
+
+
+def apply_group_template_export_dialogs(ctx: RunContext, p: dict[str, Any]) -> None:
+    """Диалоги каталога вывода и файла шаблона для group_template_export."""
+    if param_is_on(p.get("template_open_dialog")):
+        askf = _require_tk_callable(ctx, "tk_askopenfilename", "template_open_dialog")
+        title = str(p.get("template_open_dialog_help") or "Выберите Excel-шаблон")
+        tp = str(p.get("template_path", "") or "").strip()
+        initialdir = os.path.dirname(tp) if tp else os.getcwd()
+        path = askf(
+            title=title,
+            initialdir=initialdir or os.getcwd(),
+            filetypes=[("Excel", "*.xlsx"), ("All files", "*.*")],
+        )
+        if not path:
+            raise ValueError("Шаблон не выбран (template_open_dialog).")
+        p["template_path"] = path
+
+    if param_is_on(p.get("directory_open_dialog")):
+        askd = _require_tk_callable(ctx, "tk_askdirectory", "directory_open_dialog")
+        title = str(p.get("directory_open_dialog_help") or "Выберите каталог для сохранения файлов")
+        initial = str(p.get("out_dir", "") or "").strip() or os.getcwd()
+        d = askd(title=title, initialdir=initial)
+        if not d:
+            raise ValueError("Каталог не выбран (directory_open_dialog).")
+        p["out_dir"] = d

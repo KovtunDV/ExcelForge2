@@ -26,6 +26,7 @@ Thumbs.db
 desktop.ini
 
 # Test / lint caches
+tests/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

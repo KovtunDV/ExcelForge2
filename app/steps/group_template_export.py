@@ -133,6 +133,32 @@ def _agg_column_series(gdf: pd.DataFrame, col: str) -> pd.Series:
     return parse_numeric_series(gdf[col])
 
 
+def _agg_join_column(gdf: pd.DataFrame, col: str, spec: dict[str, Any]) -> str:
+    if col not in gdf.columns:
+        raise ValueError(f"column not found: {col!r}")
+    sep = str(spec.get("separator", spec.get("sep", spec.get("delimiter", ";"))))
+    unique = param_is_on(spec.get("unique", False))
+    skip_empty = param_is_on(spec.get("skip_empty", True))
+
+    parts: list[str] = []
+    seen: set[str] = set()
+    for val in gdf[col]:
+        if val is None or (isinstance(val, float) and val != val):
+            if skip_empty:
+                continue
+            s = ""
+        else:
+            s = str(val).strip()
+            if skip_empty and not s:
+                continue
+        if unique:
+            if s in seen:
+                continue
+            seen.add(s)
+        parts.append(s)
+    return sep.join(parts)
+
+
 def _compute_aggregations(
     gdf: pd.DataFrame,
     specs: list[dict[str, Any]],
@@ -140,7 +166,7 @@ def _compute_aggregations(
 ) -> dict[str, Any]:
     if not specs:
         return {}
-    results: dict[str, float] = {}
+    results: dict[str, Any] = {}
     var_num = _numeric_variables(variables)
     pending = list(specs)
     for _ in range(len(specs) + 2):
@@ -167,6 +193,11 @@ def _compute_aggregations(
                 elif op in ("avg", "mean"):
                     col = str(spec.get("column") or spec.get("col") or "").strip()
                     results[name] = float(_agg_column_series(gdf, col).mean())
+                elif op in ("join", "concat", "concatenate", "list"):
+                    col = str(spec.get("column") or spec.get("col") or "").strip()
+                    if not col:
+                        raise ValueError(f"aggregations[{name}]: column is required for op {op!r}")
+                    results[name] = _agg_join_column(gdf, col, spec)
                 elif op == "expr":
                     expr = str(spec.get("expression") or spec.get("expr") or "").strip()
                     env = {**results, **var_num}
@@ -179,8 +210,8 @@ def _compute_aggregations(
                     continue
                 raise
             fmt = spec.get("format")
-            if fmt and str(fmt).endswith("%"):
-                results[name] = float(format_scalar(results[name], str(fmt)))
+            if fmt and str(fmt).endswith("%") and isinstance(results[name], (int, float)):
+                results[name] = float(format_scalar(float(results[name]), str(fmt)))
         pending = still
     if pending:
         names = ", ".join(s["name"] for s in pending)
@@ -190,8 +221,10 @@ def _compute_aggregations(
         name = spec["name"]
         val = results[name]
         fmt = spec.get("format")
-        if fmt and not str(fmt).endswith("%"):
-            out[name] = format_scalar(val, str(fmt))
+        if isinstance(val, str):
+            out[name] = val
+        elif fmt and not str(fmt).endswith("%"):
+            out[name] = format_scalar(float(val), str(fmt))
         else:
             out[name] = val
     return out

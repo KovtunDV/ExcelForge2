@@ -365,7 +365,7 @@ params:
 | `single_row_mode` | `true` — принудительно однострочный режим (даже если заданы параметры таблицы). |
 | `filename_inc` | В однострочном режиме: размещение номера строки в имени файла. `prefix` (по умолчанию) — `{inc}_` в начале; `suffix` — `_{inc}` в конце (перед расширением); `false` — не добавлять. Словарь `{enabled, position}` с `position`: `prefix` \| `suffix`. В маске `filename_mask` доступен `{inc}`. |
 | `static_fields` | Список `{cell: "B2", value: "..."}` с плейсхолдерами. |
-| `aggregations` | Список `{name, op, column?, expression?, format?}`; `op`: `sum`, `count`, `min`, `max`, `avg`, `expr`. Числа в колонках распознаются и с точкой (`34.55`), и с запятой (`34,55`). |
+| `aggregations` | Список `{name, op, column?, expression?, format?, separator?, unique?, skip_empty?}`; `op`: `sum`, `count`, `min`, `max`, `avg`, `expr`, **`join`** (конкатенация строк столбца). Для `join`: `separator` (по умолчанию `;`), `unique: true` — без повторов, `skip_empty: true` (по умолчанию) — пропуск пустых. Синонимы `join`: `concat`, `concatenate`, `list`. Числа в колонках распознаются и с точкой (`34.55`), и с запятой (`34,55`). |
 | `row_increment` | `{enabled, excel_col, start}` — номер п/п в колонку (или маркер `{{inc}}`). |
 | `row_filter` | Выражение фильтрации (как в `filtration`) перед группировкой. |
 | `sort_within_group` | `{column, ascending}` — сортировка строк внутри группы. |
@@ -398,6 +398,7 @@ params:
     - { name: total_qty, op: sum, column: "Количество" }
     - { name: total_sum, op: expr, expression: "total_qty * 50" }
     - { name: lines_count, op: count }
+    - { name: lots, op: join, column: "Лот", separator: ";" }
 ```
 
 ### Пример (однострочный режим формы)

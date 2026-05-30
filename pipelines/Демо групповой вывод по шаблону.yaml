@@ -61,5 +61,9 @@ steps:
       expression: total_qty * 0.5
     - name: lines_count
       op: count
+    - name: lot
+      column: Лот
+      op: join
+      separator: ' ; '
     skip_empty_groups: true
   comment: '123'

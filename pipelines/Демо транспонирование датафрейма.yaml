@@ -1,0 +1,34 @@
+pipeline_version: 1
+name: Демо транспонирование датафрейма
+description: Проверка транспонирования
+steps:
+- id: load_excel_1
+  type: load_excel
+  params:
+    input_mode: file
+    directory: ''
+    pattern: '*.xlsx'
+    recursive: false
+    file_path: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data/In_data/group_export_lines.xlsx
+    file_open_dialog: false
+    file_open_dialog_help: Выберите файл для загрузки
+    filetypes: []
+    directory_open_dialog: false
+    directory_open_dialog_help: Выберите каталог с файлами Excel
+    sheet: Sheet1
+    header_mode: first_row
+    start_row: 1
+    usecols: ''
+    dataframe: df_main
+    dtype: str
+    include_service_columns: false
+    from_file_mode: basename
+    date_file_mode: modified
+- id: transpose_df_1
+  type: transpose_df
+  params:
+    source_df: df_main
+    target_df: df_main2
+    copy: true
+    column_names_as_column: true
+    column_names_column: Расшифровка

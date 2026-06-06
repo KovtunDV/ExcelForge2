@@ -28,6 +28,7 @@ from app.pipeline.context import RunContext, create_run_context
 from app.pipeline.global_context import list_global_names
 from app.pipeline.registry import REGISTRY
 from app.pipeline.schema import Pipeline, Step
+from app.steps.dialog_paths import resolve_dialog_initial_dir
 from app import preview_settings
 from app.ui_qt.data_preview_dialog import DataPreviewDialog
 from app.ui_qt.log_bridge import LogBridge
@@ -494,6 +495,11 @@ class BuilderView(QWidget):
             self.step_path_tools.show()
             self.btn_pick_globals_dir.show()
             self.btn_pick_globals_file.show()
+        elif step_type == "file_ops":
+            self.step_path_tools.show()
+            self.btn_pick_in_file.show()
+            self.btn_pick_in_dir.show()
+            self.btn_pick_out_dir.show()
 
     def _apply_step_edits(self) -> None:
         idx = self._active_step_index
@@ -534,18 +540,39 @@ class BuilderView(QWidget):
 
     def _pick_load_excel_file(self) -> None:
         step = self._current_step()
-        if not step or step.type != "load_excel":
+        if not step:
+            return
+        if step.type == "file_ops":
+            try:
+                params = self._read_params_text()
+            except Exception as e:  # noqa: BLE001
+                QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
+                return
+            initial = resolve_dialog_initial_dir(params, fallback=str(params.get("source_path", "") or ""))
+            fp, _ = QFileDialog.getOpenFileName(
+                self,
+                "Выберите файл",
+                initial,
+                "All files (*.*)",
+            )
+            if not fp:
+                return
+            params["source_path"] = fp
+            self._write_params_text(params)
+            self._mark_dirty()
+            return
+        if step.type != "load_excel":
             return
         try:
             params = self._read_params_text()
         except Exception as e:  # noqa: BLE001
             QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
             return
-        initial = params.get("file_path") or os.getcwd()
+        initial = resolve_dialog_initial_dir(params, fallback=str(params.get("file_path", "") or ""))
         fp, _ = QFileDialog.getOpenFileName(
             self,
             "Выберите Excel файл",
-            os.path.dirname(str(initial)) if str(initial) else os.getcwd(),
+            initial,
             "Excel (*.xlsx *.xlsm *.xls);;All files (*.*)",
         )
         if not fp:
@@ -557,18 +584,38 @@ class BuilderView(QWidget):
 
     def _pick_load_excel_dir(self) -> None:
         step = self._current_step()
-        if not step or step.type != "load_excel":
+        if not step:
+            return
+        if step.type == "file_ops":
+            try:
+                params = self._read_params_text()
+            except Exception as e:  # noqa: BLE001
+                QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
+                return
+            initial = resolve_dialog_initial_dir(params, fallback=str(params.get("directory", "") or ""))
+            d = QFileDialog.getExistingDirectory(
+                self,
+                "Выберите входной каталог",
+                initial,
+            )
+            if not d:
+                return
+            params["directory"] = d
+            self._write_params_text(params)
+            self._mark_dirty()
+            return
+        if step.type != "load_excel":
             return
         try:
             params = self._read_params_text()
         except Exception as e:  # noqa: BLE001
             QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
             return
-        initial = params.get("directory") or os.getcwd()
+        initial = resolve_dialog_initial_dir(params, fallback=str(params.get("directory", "") or ""))
         d = QFileDialog.getExistingDirectory(
             self,
             "Выберите каталог с Excel файлами",
-            str(initial) if str(initial) else os.getcwd(),
+            initial,
         )
         if not d:
             return
@@ -580,18 +627,38 @@ class BuilderView(QWidget):
 
     def _pick_save_excel_out_dir(self) -> None:
         step = self._current_step()
-        if not step or step.type not in ("save_excel", "group_template_export"):
+        if not step:
+            return
+        if step.type == "file_ops":
+            try:
+                params = self._read_params_text()
+            except Exception as e:  # noqa: BLE001
+                QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
+                return
+            initial = resolve_dialog_initial_dir(params, fallback=str(params.get("dest_dir", "") or ""))
+            d = QFileDialog.getExistingDirectory(
+                self,
+                "Выберите выходной каталог",
+                initial,
+            )
+            if not d:
+                return
+            params["dest_dir"] = d
+            self._write_params_text(params)
+            self._mark_dirty()
+            return
+        if step.type not in ("save_excel", "group_template_export"):
             return
         try:
             params = self._read_params_text()
         except Exception as e:  # noqa: BLE001
             QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
             return
-        initial = params.get("out_dir") or os.getcwd()
+        initial = resolve_dialog_initial_dir(params, fallback=str(params.get("out_dir", "") or ""))
         d = QFileDialog.getExistingDirectory(
             self,
             "Выберите выходной каталог",
-            str(initial) if str(initial) else os.getcwd(),
+            initial,
         )
         if not d:
             return
@@ -608,11 +675,11 @@ class BuilderView(QWidget):
         except Exception as e:  # noqa: BLE001
             QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
             return
-        initial = params.get("template_path") or os.getcwd()
+        initial = resolve_dialog_initial_dir(params, fallback=str(params.get("template_path", "") or ""))
         fp, _ = QFileDialog.getOpenFileName(
             self,
             "Выберите Excel шаблон",
-            os.path.dirname(str(initial)) if str(initial) else os.getcwd(),
+            initial,
             "Excel (*.xlsx *.xlsm *.xls);;All files (*.*)",
         )
         if not fp:
@@ -643,9 +710,12 @@ class BuilderView(QWidget):
             return
         var = self._norm_global_var_name(params.get("directory_var"), "directory")
         current = values.get(var)
-        initial = str(current or params.get("directory_initial") or os.getcwd())
+        initial = resolve_dialog_initial_dir(
+            params,
+            fallback=str(current or params.get("directory_initial") or ""),
+        )
         title = str(params.get("directory_open_dialog_help") or "Выберите каталог")
-        d = QFileDialog.getExistingDirectory(self, title, initial if initial else os.getcwd())
+        d = QFileDialog.getExistingDirectory(self, title, initial)
         if not d:
             return
         values[var] = d
@@ -670,12 +740,12 @@ class BuilderView(QWidget):
             return
         var = self._norm_global_var_name(params.get("file_var"), "file_path")
         current = values.get(var)
-        initial_dir = os.path.dirname(str(current)) if current else os.getcwd()
+        initial_dir = resolve_dialog_initial_dir(params, fallback=str(current or ""))
         title = str(params.get("file_open_dialog_help") or "Выберите файл")
         fp, _ = QFileDialog.getOpenFileName(
             self,
             title,
-            initial_dir if initial_dir else os.getcwd(),
+            initial_dir,
             "All files (*.*)",
         )
         if not fp:

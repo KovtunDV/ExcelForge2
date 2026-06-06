@@ -4,6 +4,7 @@ from app.steps.cast_column_type import register_cast_column_type
 from app.steps.concat_dfs import register_concat_dfs
 from app.steps.df_assign import register_df_assign
 from app.steps.drop_rows import register_drop_rows
+from app.steps.file_ops import register_file_ops
 from app.steps.filtration_rows import register_filtration_rows
 from app.steps.transpose_df import register_transpose_df
 from app.steps.groupby_aggregate import register_groupby_aggregate
@@ -35,4 +36,5 @@ def register_all_steps() -> None:
     register_group_template_export()
     register_sort_list_output()
     register_df_assign()
+    register_file_ops()
 

@@ -11,7 +11,6 @@ from openpyxl import load_workbook
 from app.pipeline.context import RunContext
 from app.pipeline.registry import REGISTRY, StepDefinition
 from app.pipeline.schema import Step
-from app.steps.dialog_paths import apply_save_excel_runtime_dialogs
 from app.steps.util import ensure_df_exists, get_required_param, resolve_df_names_by_mask
 
 
@@ -87,6 +86,8 @@ def _write_df_into_template(
     # overwrite: create out_path as a copy of template
     # update: open existing out_path and write into it (no template copy)
     if mode == "overwrite":
+        if not os.path.isfile(template_path):
+            raise FileNotFoundError(f"save_excel: шаблон не найден: {template_path}")
         os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
         shutil.copy2(template_path, out_path)
         wb = load_workbook(out_path)
@@ -250,10 +251,11 @@ def _write_plain_multi_excel(
 
 def run_save_excel(ctx: RunContext, step: Step) -> None:
     p = step.params
-    apply_save_excel_runtime_dialogs(ctx, p)
     export_mode = _normalize_export_mode(p.get("export_mode", "single"))
-    out_dir = str(get_required_param(p, "out_dir"))
-    filename = str(get_required_param(p, "filename"))
+    out_dir = str(p.get("out_dir", "") or "").strip()
+    if not out_dir:
+        raise ValueError("save_excel: задайте out_dir или включите диалог выбора каталога/файла")
+    filename = str(p.get("filename", "") or "").strip() or "result.xlsx"
 
     columns = _parse_columns_param(p.get("columns"))
 
@@ -429,6 +431,8 @@ def register_save_excel() -> None:
                 "file_open_dialog_help": "Укажите файл для сохранения",
                 "directory_open_dialog": False,
                 "directory_open_dialog_help": "Выберите каталог для сохранения",
+                "directory_initial": "",
+                "dialogs": [],
                 "columns": [],
                 "template_path": "",
                 "template_write_mode": "overwrite",  # overwrite|update

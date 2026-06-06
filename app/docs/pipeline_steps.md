@@ -14,6 +14,42 @@
 
 **Пример:** пайплайн A загружает данные в `glob_raw`; пайплайн B в отладке читает `glob_raw` как `source_df` без повторной загрузки Excel.
 
+### Диалоги выбора файлов и каталогов (универсально)
+
+Для шагов с интерактивным выбором путей ( `globals_settings`, `load_excel`, `save_excel`, `file_ops`, `group_template_export` и др.) диалоги выполняются **до основной логики шага** через общий механизм `resolve_params`.
+
+**Способ 1 — список `dialogs`** (рекомендуется для нескольких диалогов в одном шаге):
+
+```yaml
+params:
+  dialogs:
+    - kind: directory_open          # file_open | directory_open | file_save
+      title: "Выберите каталог с файлами"
+      assign: directory             # параметр шага или имя переменной
+      initial: "@in_dir"            # необяз.: стартовый каталог (@var или путь)
+    - kind: file_save
+      title: "Сохранить архив как"
+      assign: dest_path
+      assign_dir: dest_dir          # для file_save: каталог из полного пути
+      assign_name: filename         # имя файла без каталога
+      default_extension: .zip
+      store: param                  # param | variable | both
+```
+
+Поля `assign` / `store: variable` записывают результат в `ctx.variables` (как `@имя` в других шагах).
+
+**Способ 2 — inline-токены** в значениях параметров:
+
+```yaml
+source_path: "@file_open_dialog(Выберите файл для архива)"
+dest_path: "@file_save_dialog(Сохранить архив как)"
+directory: "@directory_open_dialog(Каталог с данными)"
+```
+
+При выполнении шага сначала отрабатывают все диалоги из `dialogs[]`, затем устаревшие флаги (`file_open_dialog`, `directory_open_dialog`, …), затем подстановка `@var` и inline `@*_dialog(...)`.
+
+Устаревшие флаги по-прежнему поддерживаются для совместимости; для `file_ops` с двумя диалогами предпочтительнее явный `dialogs[]` или `source_*` / `dest_*` флаги.
+
 ---
 
 ## load_excel
@@ -43,6 +79,7 @@
 | `filetypes` | Опционально: список пар для фильтра диалога, как в `globals_settings` — `[["Excel", "*.xlsx"], ["Все", "*.*"]]`. Если пусто — фильтр строится из **`pattern`** (та же маска, что для `input_mode: mask`). |
 | `directory_open_dialog` | `on` / `off` | При выполнении показать диалог выбора **каталога** (при `input_mode: mask` или `latest`). Результат **перезаписывает** `directory`. |
 | `directory_open_dialog_help` | строка | Заголовок диалога выбора каталога. |
+| `directory_initial` | строка | Начальный каталог в диалогах выбора файла/каталога. Если пуст или путь недоступен — каталог запуска программы; иначе — указанный каталог (или родительский каталог для `file_path`, если `directory_initial` не задан). |
 
 Значения «включено» для флагов: `true`, `on`, `yes`, `1` (без учёта регистра).
 
@@ -111,7 +148,7 @@ params:
 | `directory_open_dialog` | `on/off`: показать диалог выбора каталога и сохранить результат в переменную `directory_var`. |
 | `directory_var` | Имя переменной для каталога (например `directory_n` или `@directory_n`). |
 | `directory_open_dialog_help` | Заголовок диалога выбора каталога. |
-| `directory_initial` | Начальный каталог (опционально). |
+| `directory_initial` | Начальный каталог в диалогах. Если пуст или путь недоступен — каталог запуска программы. |
 | `file_open_dialog` | `on/off`: показать диалог выбора файла и сохранить результат в `file_var`. |
 | `file_var` | Имя переменной для файла (например `file_path` или `@file_path`). |
 | `file_open_dialog_help` | Заголовок диалога выбора файла. |
@@ -193,6 +230,7 @@ params:
 | `file_open_dialog_help` | строка | Заголовок диалога сохранения файла. |
 | `directory_open_dialog` | `on` / `off` | Диалог выбора **каталога**; перезаписывает только `out_dir`. Имеет смысл, если `file_open_dialog` выключен. |
 | `directory_open_dialog_help` | строка | Заголовок диалога каталога. |
+| `directory_initial` | строка | Начальный каталог в диалогах. Если пуст или путь недоступен — каталог запуска программы; иначе — указанный каталог (или `out_dir`, если `directory_initial` не задан). При включённом `file_open_dialog` проверка `out_dir`/`filename` из YAML выполняется **после** диалога. |
 | `columns` | Список имён колонок для выгрузки; `[]` — все колонки. |
 | `sheet_name` | Имя листа (режим **`single`** / шаблон). В **`mask_sheets`** не используется — лист называется **как имя DF** (санитизация под Excel: до 31 символа, без `[]:*?/\\`). |
 | `start_row`, `start_col` | Левый верх ячейки области записи (**1-based**): для шаблона и для простой записи без шаблона. |
@@ -1242,4 +1280,146 @@ params:
   fill_value: "—"
   scope: all_columns
   treat_whitespace_as_empty: true
+```
+
+---
+
+## file_ops
+
+**Назначение:** универсальные операции с файлами и ZIP-архивами (Windows/Linux): поиск по маске, копирование самого свежего файла, пакетное копирование с сохранением или без сохранения структуры каталогов, упаковка/распаковка ZIP, простое копирование/перемещение/удаление. Пути и имена поддерживают глобальные переменные `@var` (подставляются до запуска шага).
+
+Поле **`operation`**: `copy` \| `move` \| `delete` \| `copy_latest` \| `copy_by_mask` \| `zip_create` \| `zip_extract`.
+
+### Общие параметры
+
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| `operation` | строка | Тип операции (см. ниже). |
+| `source_mode` | строка | Для поиска источников: `file`, `files`, `mask`, `latest`. |
+| `source_path` | строка | Путь к одному файлу (`copy`, `move`, `zip_extract`, `delete` при `source_mode: file`). |
+| `files` | список | Явный список путей при `source_mode: files`. |
+| `directory` | строка | Каталог поиска при `mask` / `latest` / `copy_by_mask` / `zip_create`. |
+| `pattern` | строка | Одна маска файлов, напр. `*.xlsx`. |
+| `patterns` | список | Несколько масок: `["*.xlsx", "*.csv"]` (приоритет над `pattern`, если непустой). |
+| `recursive` | bool | Искать во вложенных каталогах. |
+| `include_dirs` | список | При рекурсии — спускаться только в каталоги, имя которых совпадает с маской. |
+| `exclude_dirs` | список | Пропускать каталоги по маске имён, напр. `["temp", "archive"]`. |
+| `dest_dir` | строка | Каталог назначения. |
+| `dest_path` | строка | Полный путь к **файлу** или путь к **каталогу** (если заданы `filename`/`dest_name`/`extension`). Если указан существующий каталог — имя архива/файла собирается из `dest_name` + `extension`. |
+| `dest_name` / `filename` | строка | Имя файла в `dest_dir`. |
+| `prefix`, `suffix` | строка | Префикс/суффикс имени. |
+| `extension` | строка | Расширение, напр. `.zip` или `.xlsx`. |
+| `filename_mask` | строка | Шаблон: `{name}`, `{stem}`, `{ext}`, `{inc}`. |
+| `inc_start` | int | Начало счётчика (по умолчанию 1). |
+| `inc_step` | int | Шаг счётчика (по умолчанию 1). |
+| `inc_position` | строка | `prefix` \| `suffix` \| `false` — размещение `{inc}`. |
+| `preserve_structure` | bool | Сохранять относительную структуру каталогов при копировании и в ZIP. |
+| `on_conflict` | строка | При совпадении имён в одном каталоге: `overwrite` (по умолчанию), `skip`, `rename` (`_2`, `_3`…). |
+| `ensure_dirs` | `on` / `off` | Автоматически создавать каталоги назначения (по умолчанию `on`). |
+| `result_var` | строка | Имя переменной: записать путь последнего обработанного файла в `ctx.variables`. |
+
+#### Диалоги
+
+Используйте универсальный параметр **`dialogs`** (см. раздел «Диалоги выбора файлов и каталогов» в начале документа) или inline `@file_open_dialog(…)` / `@directory_open_dialog(…)` / `@file_save_dialog(…)` в путях.
+
+Пример для `zip_create` (каталог источника + «Сохранить как»):
+
+```yaml
+dialogs:
+  - kind: directory_open
+    title: "Выберите каталог с файлами для архива"
+    assign: directory
+    initial: "@in_dir"
+  - kind: file_save
+    title: "Укажите путь для сохранения ZIP-архива"
+    assign: dest_path
+    assign_dir: dest_dir
+    assign_name: filename
+    default_extension: .zip
+    initial: "@archive_dir"
+```
+
+**Устаревшие флаги** (совместимость): `source_file_open_dialog`, `source_directory_open_dialog`, `dest_save_dialog`, `dest_directory_open_dialog`; алиасы `file_open_dialog`, `directory_open_dialog`. Для `source_*` / `dest_*` можно задать `source_directory_initial`, `dest_directory_initial`, `directory_initial`.
+
+### Операции
+
+| operation | Описание |
+|-----------|----------|
+| `copy` | Копирование одного файла: `source_path` + (`dest_path` или `dest_dir` + имя). |
+| `move` | Перемещение одного файла (те же параметры). |
+| `delete` | Удаление: один `source_path` или поиск по `source_mode` / маскам. |
+| `copy_latest` | Самый свежий файл (max mtime) из `directory` по маске → `dest_dir`. |
+| `copy_by_mask` | Все совпавшие файлы → `dest_dir`; `preserve_structure`, `on_conflict`, `inc_*`. |
+| `zip_create` | Упаковка найденных файлов в ZIP (`dest_path` или `dest_dir` + `dest_name`). |
+| `zip_extract` | Распаковка архива `source_path` в `dest_dir`. |
+
+### Примеры
+
+Самый свежий файл:
+
+```yaml
+type: file_ops
+params:
+  operation: copy_latest
+  directory: "@in_dir"
+  pattern: "report_*.xlsx"
+  recursive: true
+  dest_dir: "@out_dir"
+  dest_name: "latest_report.xlsx"
+  ensure_dirs: on
+```
+
+Копирование по маскам с сохранением структуры:
+
+```yaml
+type: file_ops
+params:
+  operation: copy_by_mask
+  directory: ./data/in
+  patterns: ["*.xlsx", "*.csv"]
+  recursive: true
+  exclude_dirs: ["archive", "temp"]
+  dest_dir: ./data/out
+  preserve_structure: true
+  on_conflict: skip
+```
+
+Упаковка ZIP:
+
+```yaml
+type: file_ops
+params:
+  operation: zip_create
+  source_mode: mask
+  directory: "@in_dir"
+  patterns: ["*.xlsx"]
+  recursive: false
+  dest_dir: "@archive_dir"
+  dest_name: "backup_@period.zip"
+  preserve_structure: true
+  dialogs:
+    - kind: directory_open
+      title: "Выберите каталог с файлами для архива"
+      assign: directory
+      initial: "@in_dir"
+    - kind: file_save
+      title: "Укажите путь для сохранения ZIP-архива"
+      assign: dest_path
+      assign_dir: dest_dir
+      assign_name: filename
+      default_extension: .zip
+      initial: "@archive_dir"
+```
+
+Перемещение с инкрементом в имени:
+
+```yaml
+type: file_ops
+params:
+  operation: move
+  source_path: "@in_dir/raw.xlsx"
+  dest_dir: "@out_dir"
+  prefix: "processed_"
+  inc_start: 1
+  inc_position: prefix
 ```

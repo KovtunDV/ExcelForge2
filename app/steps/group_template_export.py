@@ -8,7 +8,6 @@ import pandas as pd
 from app.pipeline.context import RunContext
 from app.pipeline.registry import REGISTRY, StepDefinition
 from app.pipeline.schema import Step
-from app.steps.dialog_paths import apply_group_template_export_dialogs
 from app.steps.excel_template import (
     build_output_filename,
     format_scalar,
@@ -308,7 +307,6 @@ def _ask_retry_locked(ctx: RunContext, path: str, err: BaseException) -> bool:
 
 def run_group_template_export(ctx: RunContext, step: Step) -> None:
     p = step.params
-    apply_group_template_export_dialogs(ctx, p)
 
     source_df = str(get_required_param(p, "source_df"))
     template_path = str(get_required_param(p, "template_path")).strip()
@@ -505,6 +503,7 @@ def register_group_template_export() -> None:
                 "row_filter": {},
                 "sort_within_group": {},
                 "skip_empty_groups": True,
+                "dialogs": [],
                 "directory_open_dialog": False,
                 "directory_open_dialog_help": "Выберите каталог для сохранения файлов",
                 "template_open_dialog": False,

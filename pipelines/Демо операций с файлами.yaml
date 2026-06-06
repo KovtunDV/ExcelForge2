@@ -1,0 +1,58 @@
+pipeline_version: 1
+name: Демо операций с файлами
+description: Тест операций с файлами
+steps:
+- id: globals_settings_1
+  type: globals_settings
+  params:
+    values: {}
+    system_values: []
+    directory_open_dialog: false
+    directory_var: directory
+    directory_open_dialog_help: Выберите каталог
+    directory_initial: .\pipelines
+    file_open_dialog: true
+    file_var: file_path
+    file_open_dialog_help: Выберите файл
+    filetypes:
+    - - All files
+      - '*.*'
+  comment: Создание архива
+- id: file_ops_1
+  type: file_ops
+  params:
+    operation: zip_create
+    source_mode: file
+    source_path: '@file_path'
+    files: []
+    directory: ''
+    pattern: '*.*'
+    patterns: []
+    recursive: false
+    include_dirs: []
+    exclude_dirs: []
+    dest_dir: ''
+    dest_path: ''
+    dest_name: ''
+    filename: test
+    prefix: ''
+    suffix: ''
+    extension: zip
+    filename_mask: ''
+    inc_start: 1
+    inc_step: 1
+    inc_position: false
+    preserve_structure: false
+    on_conflict: overwrite
+    ensure_dirs: true
+    result_var: ''
+    dialogs:
+    - kind: file_save
+      title: Сохранить архив как
+      assign: dest_path
+      assign_dir: dest_dir
+      assign_name: filename
+      default_extension: .zip
+    directory_initial: T:\доки
+    filetypes: []
+  comment: Создание архива

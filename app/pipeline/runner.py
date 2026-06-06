@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 from typing import Any, Callable
 
 from app.pipeline.context import RunContext
 from app.pipeline.registry import REGISTRY
 from app.pipeline.schema import Pipeline, Step
+from app.steps.step_dialogs import resolve_params
+
+
+ProgressCallback = Callable[[int, int, Step], None]
 
 
 class StepExecutionError(RuntimeError):
@@ -20,39 +23,12 @@ class RunResult:
     error: str | None = None
 
 
-ProgressCallback = Callable[[int, int, Step], None]
-
-
-def _resolve_value(v: Any, variables: dict[str, Any]) -> Any:
-    if isinstance(v, str):
-        s = v.strip()
-        # Replace only pure tokens like "@var" (no spaces); keep literal strings intact.
-        if s.startswith("@") and len(s) > 1 and " " not in s:
-            key = s[1:]
-            if key in variables:
-                return variables[key]
-        if "@" not in v:
-            return v
-
-        # Also support embedding: "C:/out/@dir/file.xlsx"
-        # Replace occurrences of @name if name exists in variables; embedded values are stringified.
-        def _repl(m: re.Match[str]) -> str:
-            key = m.group(1)
-            if key in variables:
-                return str(variables[key])
-            return m.group(0)
-
-        return re.sub(r"@([A-Za-z_][A-Za-z0-9_]*)", _repl, v)
-    if isinstance(v, list):
-        return [_resolve_value(x, variables) for x in v]
-    if isinstance(v, dict):
-        return {k: _resolve_value(val, variables) for k, val in v.items()}
-    return v
-
-
 def _resolve_step_params(params: dict[str, Any], variables: dict[str, Any]) -> dict[str, Any]:
-    # Copy + resolve recursively; do not mutate original pipeline definition.
-    return _resolve_value(dict(params), variables)
+    """Устаревший API: только @var без диалогов. Используйте resolve_params(ctx, params)."""
+    from app.pipeline.context import RunContext
+
+    ctx = RunContext(variables=dict(variables))
+    return resolve_params(ctx, params)
 
 
 def run_pipeline(
@@ -83,7 +59,7 @@ def run_pipeline(
         try:
             orig_params = step.params
             try:
-                step.params = _resolve_step_params(orig_params, ctx.variables)
+                step.params = resolve_params(ctx, orig_params, step_type=step.type)
                 REGISTRY.get(step.type).runner(ctx, step)
             finally:
                 step.params = orig_params

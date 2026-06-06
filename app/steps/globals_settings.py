@@ -6,7 +6,6 @@ from typing import Any
 from app.pipeline.context import RunContext
 from app.pipeline.registry import REGISTRY, StepDefinition
 from app.pipeline.schema import Step
-from app.steps.dialog_paths import parse_filetypes_param
 from app.steps.util import param_is_on
 
 _SYSTEM_TYPES = frozenset({"date", "time", "datetime", "today", "now", "timestamp", "now_time"})
@@ -96,16 +95,6 @@ def _set_global(ctx: RunContext, name: str, value: Any, *, source: str = "") -> 
     ctx.logger.info(f"globals_settings: set @{name} = {value!r}{suffix}")
 
 
-def _require_tk_callable(ctx: RunContext, key: str, feature: str) -> Any:
-    fn = ctx.variables.get(key)
-    if not callable(fn):
-        raise ValueError(
-            f"{feature}: требуется GUI (в контексте не задан {key}). "
-            "Запускайте пайплайн из вкладок Builder или Runner с подключёнными диалогами."
-        )
-    return fn
-
-
 def run_globals_settings(ctx: RunContext, step: Step) -> None:
     """
     Задаёт глобальные переменные для всего пайплайна в ctx.variables.
@@ -134,27 +123,8 @@ def run_globals_settings(ctx: RunContext, step: Step) -> None:
         resolved = _resolve_system_value(item, label=f"system_values[{i}]")
         _set_global(ctx, var, resolved, source="system")
 
-    # 3) Диалог выбора каталога
-    if param_is_on(p.get("directory_open_dialog")):
-        var = _norm_name(str(p.get("directory_var") or "directory"))
-        askd = _require_tk_callable(ctx, "tk_askdirectory", "directory_open_dialog")
-        title = str(p.get("directory_open_dialog_help") or "Выберите каталог")
-        initial = str(p.get("directory_initial", "") or "").strip()
-        d = askd(title=title, initialdir=initial) if initial else askd(title=title)
-        if not d:
-            raise ValueError("Каталог не выбран (directory_open_dialog).")
-        _set_global(ctx, var, d, source="directory dialog")
-
-    # 4) Диалог выбора файла
-    if param_is_on(p.get("file_open_dialog")):
-        var = _norm_name(str(p.get("file_var") or "file_path"))
-        askf = _require_tk_callable(ctx, "tk_askopenfilename", "file_open_dialog")
-        title = str(p.get("file_open_dialog_help") or "Выберите файл")
-        filetypes = parse_filetypes_param(p.get("filetypes")) or [("All files", "*.*")]
-        r = askf(title=title, filetypes=filetypes)
-        if not r:
-            raise ValueError("Файл не выбран (file_open_dialog).")
-        _set_global(ctx, var, r, source="file dialog")
+    # 3–4) Диалоги выбора каталога/файла — через params.dialogs или inline @*_dialog(...)
+    # (выполняются в resolve_params до запуска шага)
 
 
 def register_globals_settings() -> None:
@@ -170,6 +140,7 @@ def register_globals_settings() -> None:
                 "directory_var": "directory",
                 "directory_open_dialog_help": "Выберите каталог",
                 "directory_initial": "",
+                "dialogs": [],
                 "file_open_dialog": False,
                 "file_var": "file_path",
                 "file_open_dialog_help": "Выберите файл",

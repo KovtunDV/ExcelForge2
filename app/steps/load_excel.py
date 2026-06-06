@@ -8,7 +8,6 @@ import pandas as pd
 from app.pipeline.context import RunContext
 from app.pipeline.registry import REGISTRY, StepDefinition
 from app.pipeline.schema import Step
-from app.steps.dialog_paths import apply_load_excel_runtime_dialogs
 from app.steps.util import (
     ScannedFile,
     get_required_param,
@@ -104,7 +103,6 @@ def _read_one_excel(path: str, params: dict[str, Any]) -> pd.DataFrame:
 
 def run_load_excel(ctx: RunContext, step: Step) -> None:
     p = step.params
-    apply_load_excel_runtime_dialogs(ctx, p)
     input_mode: InputMode = str(p.get("input_mode", "file"))
 
     df_name = str(get_required_param(p, "dataframe"))
@@ -115,10 +113,18 @@ def run_load_excel(ctx: RunContext, step: Step) -> None:
 
     to_load: list[ScannedFile] = []
     if input_mode == "file":
-        f = str(get_required_param(p, "file_path"))
+        f = str(p.get("file_path", "") or "").strip()
+        if not f:
+            raise ValueError(
+                "load_excel: задайте file_path или включите file_open_dialog для выбора файла"
+            )
         to_load = [scan_single_file(f)]
     else:
-        directory = str(get_required_param(p, "directory"))
+        directory = str(p.get("directory", "") or "").strip()
+        if not directory:
+            raise ValueError(
+                "load_excel: задайте directory или включите directory_open_dialog для выбора каталога"
+            )
         pattern = str(p.get("pattern", "*.xlsx"))
         scanned = scan_directory_files(directory, pattern, recursive=recursive)
         ctx.logger.info(
@@ -193,8 +199,10 @@ def register_load_excel() -> None:
                 "file_open_dialog": False,
                 "file_open_dialog_help": "Выберите файл для загрузки",
                 "filetypes": [],
+                "dialogs": [],
                 "directory_open_dialog": False,
                 "directory_open_dialog_help": "Выберите каталог с файлами Excel",
+                "directory_initial": "",
                 "sheet": "Sheet1",
                 "header_mode": "first_row",  # first_row|letters|numbers
                 "start_row": 1,

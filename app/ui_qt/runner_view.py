@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from app.io.yaml_io import load_pipeline_yaml
 from app.pipeline.context import RunContext, create_run_context
 from app.pipeline.schema import Pipeline
+from app.steps.dialog_paths import resolve_dialog_initial_dir
 from app.steps.util import param_is_on
 from app.ui_qt.log_bridge import LogBridge
 from app.ui_qt.pipeline_qt_hooks import bind_qt_dialogs_to_context
@@ -182,10 +183,14 @@ class RunnerView(QWidget):
                 if param_is_on(params.get("file_open_dialog")):
                     continue
                 if not str(params.get("file_path", "")).strip():
+                    initial = resolve_dialog_initial_dir(
+                        params,
+                        fallback=str(params.get("file_path", "") or ""),
+                    )
                     fp, _ = QFileDialog.getOpenFileName(
                         self,
                         "Выберите Excel файл",
-                        "",
+                        initial,
                         "Excel (*.xlsx *.xlsm *.xls);;All files (*.*)",
                     )
                     if not fp:
@@ -195,7 +200,15 @@ class RunnerView(QWidget):
                 if param_is_on(params.get("directory_open_dialog")):
                     continue
                 if not str(params.get("directory", "")).strip():
-                    d = QFileDialog.getExistingDirectory(self, "Выберите каталог с Excel файлами")
+                    initial = resolve_dialog_initial_dir(
+                        params,
+                        fallback=str(params.get("directory", "") or ""),
+                    )
+                    d = QFileDialog.getExistingDirectory(
+                        self,
+                        "Выберите каталог с Excel файлами",
+                        initial,
+                    )
                     if not d:
                         raise RuntimeError("Не выбран каталог для load_excel.")
                     params["directory"] = d

@@ -6,7 +6,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 
 from app.pipeline.context import RunContext
 from app.pipeline.registry import REGISTRY
-from app.pipeline.runner import _resolve_step_params
+from app.steps.step_dialogs import resolve_params
 from app.pipeline.schema import Pipeline, Step
 
 
@@ -75,7 +75,7 @@ class PipelineWorker(QThread):
     def _run_step(self, step: Step) -> None:
         orig_params = step.params
         try:
-            step.params = _resolve_step_params(orig_params, self._ctx.variables)
+            step.params = resolve_params(self._ctx, orig_params, step_type=step.type)
             REGISTRY.get(step.type).runner(self._ctx, step)
         finally:
             step.params = orig_params
@@ -101,7 +101,7 @@ class SingleStepWorker(QThread):
             self._ctx.logger.info(f"Verify step: {step.id} ({step.type})")
             orig_params = step.params
             try:
-                step.params = _resolve_step_params(orig_params, self._ctx.variables)
+                step.params = resolve_params(self._ctx, orig_params, step_type=step.type)
                 REGISTRY.get(step.type).runner(self._ctx, step)
             finally:
                 step.params = orig_params

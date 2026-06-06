@@ -915,6 +915,24 @@ params:
 
 **Вариант 2 — список словарей:** у каждого элемента поля `name` / `output` / `as` (имя результата), `column` / `col` (источник), `func` / `agg` (строка: `size`, `count`, `sum`, `max`, `min`, `mean`, `first`, `last`, `nunique` и др., как в pandas).
 
+**Пользовательская lambda-функция:** `func: lambda` и `expr` — строка вида `lambda s: ...` (аргумент `s` — Series значений группы по колонке `column`). Можно также задать `func` сразу как `lambda s: ...`. В выражении доступны `pd`, `datetime`, `math`, `re` и вспомогательная **`excel_serial_to_datetime(x)`** (число Excel как текст → `Timestamp`).
+
+### Пример (lambda: максимальная дата из Excel-серийников)
+
+```yaml
+type: groupby_aggregate
+params:
+  source_df: df_main
+  target_df: df_grouped
+  group_keys: [Группа]
+  aggregations: {}
+  named_aggregations:
+    max_дата:
+      column: Дата
+      func: lambda
+      expr: "lambda s: pd.to_datetime(s.map(excel_serial_to_datetime), errors='coerce').max()"
+```
+
 ### Пример (классический режим)
 
 ```yaml
@@ -1112,6 +1130,26 @@ params:
 | `replace_map` | Последовательная замена подстрок | `map` — объект «что заменить → на что» |
 | `static_value` | Константа для строк с истинной маской | `value` |
 | `as_string` | Приведение к строке (`astype(string)`) | — |
+| `excel_serial_to_datetime` | Текст/число — серийный номер даты Excel → `datetime` | — |
+| `lambda` | `Series.apply` с пользовательской функцией | `expr` — строка `lambda x: ...` (аргумент `x` — значение ячейки) |
+
+В lambda доступны `pd`, `datetime`, `math`, `re` и **`excel_serial_to_datetime(x)`**.
+
+Пример: Excel-дата в текстовом столбце → `datetime`:
+
+```yaml
+transform:
+  type: lambda
+  params:
+    expr: "lambda x: excel_serial_to_datetime(x)"
+```
+
+Или встроенный тип без lambda:
+
+```yaml
+transform:
+  type: excel_serial_to_datetime
+```
 
 Эквивалент примера:
 

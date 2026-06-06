@@ -52,7 +52,7 @@ steps:
       assign_dir: dest_dir
       assign_name: filename
       default_extension: .zip
-    directory_initial: T:\доки
+    directory_initial: null
     filetypes: []
   comment: Создание архива
 - id: file_ops_2
@@ -62,13 +62,13 @@ steps:
     source_mode: file
     source_path: ''
     files: []
-    directory: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data
+    directory: ./pipelines/Demo_data
     pattern: '*.*'
     patterns: []
     recursive: false
     include_dirs: []
     exclude_dirs: []
-    dest_dir: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data/Temp
+    dest_dir: ./pipelines/Demo_data/Temp
     dest_path: ''
     dest_name: ''
     filename: ''

@@ -9,7 +9,7 @@ steps:
     directory: ''
     pattern: '*.xlsx'
     recursive: false
-    file_path: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data/In_data/group_export_lines.xlsx
+    file_path: ./pipelines/Demo_data/In_data/group_export_lines.xlsx
     filetypes: []
     sheet: Sheet1
     header_mode: first_row

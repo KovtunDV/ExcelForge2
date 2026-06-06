@@ -7,16 +7,20 @@ import pandas as pd
 from app.pipeline.context import RunContext
 from app.pipeline.registry import REGISTRY, StepDefinition
 from app.pipeline.schema import Step
+from app.steps.series_lambda import resolve_lambda_expr
 from app.steps.util import ensure_df_exists, get_required_param
 
 
-def _coerce_agg_func(func: Any) -> str:
+def _coerce_agg_func(func: Any, params: dict[str, Any] | None = None, *, label: str = "") -> Any:
+    custom = resolve_lambda_expr(func, params, label=label or "groupby_aggregate")
+    if custom is not None:
+        return custom
     if isinstance(func, str):
         return func.strip()
     return str(func).strip()
 
 
-def _parse_named_aggregations(raw: Any) -> dict[str, tuple[str, str]] | None:
+def _parse_named_aggregations(raw: Any) -> dict[str, tuple[str, Any]] | None:
     """
     Именованная агрегация pandas: .agg(out_name=(column, func), ...).
     Возвращает None, если блок не задан или пуст.
@@ -28,7 +32,7 @@ def _parse_named_aggregations(raw: Any) -> dict[str, tuple[str, str]] | None:
     if isinstance(raw, list) and not raw:
         return None
 
-    out: dict[str, tuple[str, str]] = {}
+    out: dict[str, tuple[str, Any]] = {}
 
     if isinstance(raw, list):
         for i, item in enumerate(raw):
@@ -51,7 +55,11 @@ def _parse_named_aggregations(raw: Any) -> dict[str, tuple[str, str]] | None:
                 raise ValueError(
                     f"groupby_aggregate: named_aggregations[{i}] — нужны column и func"
                 )
-            out[str(name).strip()] = (str(col).strip(), _coerce_agg_func(func))
+            label = f"groupby_aggregate: named_aggregations[{i}]"
+            out[str(name).strip()] = (
+                str(col).strip(),
+                _coerce_agg_func(func, item, label=label),
+            )
 
     elif isinstance(raw, dict):
         for out_name, spec in raw.items():
@@ -63,7 +71,13 @@ def _parse_named_aggregations(raw: Any) -> dict[str, tuple[str, str]] | None:
                     raise ValueError(
                         f"groupby_aggregate: для {oname!r} ожидается [колонка, функция] из двух элементов"
                     )
-                out[oname] = (str(spec[0]).strip(), _coerce_agg_func(spec[1]))
+                col, func_raw = spec[0], spec[1]
+                func = _coerce_agg_func(
+                    func_raw,
+                    {"expr": func_raw} if isinstance(func_raw, str) and func_raw.startswith("lambda ") else None,
+                    label=f"groupby_aggregate: named_aggregations[{oname!r}]",
+                )
+                out[oname] = (str(col).strip(), func)
             elif isinstance(spec, dict):
                 col = spec.get("column") or spec.get("col") or spec.get("source")
                 func = spec.get("func") or spec.get("agg") or spec.get("aggregation")
@@ -72,7 +86,10 @@ def _parse_named_aggregations(raw: Any) -> dict[str, tuple[str, str]] | None:
                         f"groupby_aggregate: named_aggregations[{oname!r}] — "
                         "нужны column и func (или список [column, func])"
                     )
-                out[oname] = (str(col).strip(), _coerce_agg_func(func))
+                out[oname] = (
+                    str(col).strip(),
+                    _coerce_agg_func(func, spec, label=f"groupby_aggregate: named_aggregations[{oname!r}]"),
+                )
             else:
                 raise ValueError(
                     f"groupby_aggregate: named_aggregations[{oname!r}] — "

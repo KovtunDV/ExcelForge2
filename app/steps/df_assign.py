@@ -7,6 +7,11 @@ import pandas as pd
 from app.pipeline.context import RunContext
 from app.pipeline.registry import REGISTRY, StepDefinition
 from app.pipeline.schema import Step
+from app.steps.series_lambda import (
+    apply_lambda_to_series,
+    excel_serial_to_datetime,
+    resolve_lambda_expr,
+)
 from app.steps.util import ensure_df_exists, get_required_param
 
 
@@ -138,9 +143,19 @@ def _apply_transform_to_series(s: pd.Series, spec: dict[str, Any]) -> pd.Series:
     if t in ("as_string", "string", "text"):
         return ser
 
+    if t == "excel_serial_to_datetime":
+        return s.apply(excel_serial_to_datetime)
+
+    if t == "lambda":
+        expr = par.get("expr") or par.get("lambda") or par.get("code")
+        if expr is None or str(expr).strip() == "":
+            raise ValueError("apply_transform: для lambda задайте params.expr")
+        return apply_lambda_to_series(s, str(expr))
+
     raise ValueError(
         f"apply_transform: неизвестный transform.type {t!r}. "
-        "Доступно: split_first_word, split_last_word, regex_extract, replace_map, static_value, as_string"
+        "Доступно: split_first_word, split_last_word, regex_extract, replace_map, "
+        "static_value, as_string, excel_serial_to_datetime, lambda"
     )
 
 

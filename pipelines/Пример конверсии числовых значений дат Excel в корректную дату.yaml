@@ -1,0 +1,64 @@
+pipeline_version: 1
+name: Пример конверсии числовых значений дат Excel в корректную дату
+description: Пример конверсии числовых значений дат Excel в корректную дату
+steps:
+- id: load_excel_1
+  type: load_excel
+  params:
+    input_mode: file
+    directory: ''
+    pattern: '*.xlsx'
+    recursive: false
+    directory_initial: .\pipelines\Demo_data
+    file_path: '@file_open_dialog(Выбери файл примера)'
+    filetypes: []
+    dialogs: []
+    sheet: Sheet1
+    header_mode: first_row
+    start_row: 1
+    usecols: ''
+    dataframe: df_main
+    dtype: str
+    include_service_columns: false
+    from_file_mode: basename
+    date_file_mode: modified
+- id: df_assign_1
+  type: df_assign
+  params:
+    operation: apply_transform
+    source_df: df_main
+    target_df: df_main
+    target_column: Дата_кор
+    source_column: Дата_чис
+    source_columns: []
+    prefix: ''
+    suffix: ''
+    expression: ''
+    value_type: null
+    calc_columns: []
+    condition: ''
+    transform:
+      type: lambda
+      params:
+        expr: 'lambda x: excel_serial_to_datetime(x)'
+    coerce_to_numeric_on_error: false
+    column_mode: names
+    columns: []
+    lookup_df: df_lookup
+    source_key: ''
+    lookup_key: ''
+    lookup_value_column: ''
+    subset: []
+    how: any
+    treat_whitespace_as_empty: true
+    fill_value: ''
+    scope: listed
+- id: cast_column_type_1
+  type: cast_column_type
+  params:
+    source_df: df_main
+    column: ''
+    columns: Дата_кор
+    target_type: datetime
+    errors_to_zero: true
+    use_decimal_objects: false

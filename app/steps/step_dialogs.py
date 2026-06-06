@@ -318,10 +318,13 @@ def _resolve_dialog_inline(value: str, ctx: RunContext, p: dict[str, Any]) -> st
     if kind is None:
         return value
     title = _inline_title(value) or _default_title(kind)
-    spec = DialogSpec(kind=kind, title=title, assign="_inline")
-    fallback_key = ""  # inline has no preset assign target in p
-    path = _run_dialog(ctx, p, spec)
-    return path
+    spec = DialogSpec(
+        kind=kind,
+        title=title,
+        assign="_inline",
+        initial=str(p.get("directory_initial") or ""),
+    )
+    return _run_dialog(ctx, p, spec)
 
 
 _VAR_EMBED_RE = re.compile(r"@([A-Za-z_][A-Za-z0-9_]*)")
@@ -335,15 +338,15 @@ def resolve_params(ctx: RunContext, params: dict[str, Any], *, step_type: str = 
     """
     p = copy.deepcopy(params)
     apply_configured_dialogs(ctx, p)
-    return _resolve_value_deep(p, ctx)
+    return _resolve_value_deep(p, ctx, p)
 
 
-def _resolve_value_deep(v: Any, ctx: RunContext) -> Any:
+def _resolve_value_deep(v: Any, ctx: RunContext, p: dict[str, Any]) -> Any:
     variables = ctx.variables
     if isinstance(v, str):
         s = v.strip()
         if is_inline_dialog_token(s):
-            return _resolve_dialog_inline(s, ctx, {})
+            return _resolve_dialog_inline(s, ctx, p)
         if s.startswith("@") and len(s) > 1 and " " not in s and "(" not in s:
             key = s[1:]
             if key in variables:
@@ -361,7 +364,7 @@ def _resolve_value_deep(v: Any, ctx: RunContext) -> Any:
 
         return _VAR_EMBED_RE.sub(_repl, v)
     if isinstance(v, list):
-        return [_resolve_value_deep(x, ctx) for x in v]
+        return [_resolve_value_deep(x, ctx, p) for x in v]
     if isinstance(v, dict):
-        return {k: _resolve_value_deep(val, ctx) for k, val in v.items()}
+        return {k: _resolve_value_deep(val, ctx, p) for k, val in v.items()}
     return v

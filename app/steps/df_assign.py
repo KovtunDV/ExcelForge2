@@ -159,6 +159,22 @@ def _apply_transform_to_series(s: pd.Series, spec: dict[str, Any]) -> pd.Series:
     )
 
 
+def _ensure_assignable_target_column(
+    work: pd.DataFrame, tgt_col: str, transformed: pd.Series
+) -> None:
+    """StringDtype не принимает Timestamp и другие нестроковые значения."""
+    if pd.api.types.is_string_dtype(transformed):
+        return
+    if tgt_col not in work.columns:
+        if pd.api.types.is_datetime64_any_dtype(transformed):
+            work[tgt_col] = pd.Series(pd.NaT, index=work.index, dtype=transformed.dtype)
+        else:
+            work[tgt_col] = pd.Series(pd.NA, index=work.index, dtype=object)
+        return
+    if pd.api.types.is_string_dtype(work[tgt_col]):
+        work[tgt_col] = work[tgt_col].astype(object)
+
+
 def run_df_assign(ctx: RunContext, step: Step) -> None:
     p = step.params
     op = str(p.get("operation", "concat_column")).strip().lower()
@@ -400,8 +416,7 @@ def run_df_assign(ctx: RunContext, step: Step) -> None:
                 raise ValueError("apply_transform: укажите source_column")
             transformed = _apply_transform_to_series(work[src_col], spec)
 
-        if tgt_col not in work.columns:
-            work[tgt_col] = pd.Series(pd.NA, index=work.index, dtype=object)
+        _ensure_assignable_target_column(work, tgt_col, transformed)
 
         work.loc[mask, tgt_col] = transformed.loc[mask].to_numpy()
 

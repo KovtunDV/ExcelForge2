@@ -21,12 +21,6 @@ Cmp = Literal[
     "is_na",
     "not_na",
     "str_len",
-    "len_eq",
-    "len_ne",
-    "len_gt",
-    "len_ge",
-    "len_lt",
-    "len_le",
 ]
 Op = Literal["and", "or"]
 
@@ -141,21 +135,6 @@ def eval_expression(df: pd.DataFrame, expr: dict[str, Any]) -> pd.Series:
                 raise ValueError("str_len: нужны ключи op (строка) и n (целое число)") from e
             lens = _strlen_series(s)
             m = _compare_strlen_to_n(lens, rel, n)
-        elif cmp in ("len_eq", "len_ne", "len_gt", "len_ge", "len_lt", "len_le"):
-            try:
-                n = int(v)
-            except (TypeError, ValueError) as e:
-                raise ValueError(f"For {cmp}, value must be an integer (string length), got {v!r}") from e
-            lens = _strlen_series(s)
-            rel_map = {
-                "len_eq": "==",
-                "len_ne": "!=",
-                "len_gt": ">",
-                "len_ge": ">=",
-                "len_lt": "<",
-                "len_le": "<=",
-            }
-            m = _compare_strlen_to_n(lens, rel_map[cmp], n)
         else:
             raise ValueError(f"Unsupported comparator: {cmp}")
 

@@ -8,13 +8,10 @@ from typing import Any, Literal
 
 from app.pipeline.context import RunContext
 from app.steps.dialog_paths import (
-    _dialog_flag_on,
-    _dialog_help,
     _require_tk_callable,
     filetypes_from_glob_pattern,
     parse_filetypes_param,
     resolve_dialog_initial_dir,
-    resolve_open_filetypes,
 )
 from app.steps.util import param_is_on
 
@@ -53,7 +50,6 @@ class DialogSpec:
     default_extension: str = ""
     assign_dir: str = ""
     assign_name: str = ""
-    scope: str = ""
 
 
 def _norm_assign_name(raw: Any) -> str:
@@ -148,6 +144,35 @@ def _default_title(kind: DialogKind) -> str:
     }[kind]
 
 
+def _infer_save_filetypes(
+    default_extension: str,
+    filetypes: list[tuple[str, str]] | None,
+) -> list[tuple[str, str]]:
+    if filetypes:
+        return filetypes
+    ext = default_extension.strip().lower()
+    if not ext:
+        return [("All files", "*.*")]
+    if not ext.startswith("."):
+        ext = f".{ext}"
+    if ext == ".zip":
+        return [("ZIP archive", "*.zip"), ("All files", "*.*")]
+    if ext == ".xlsx":
+        return [("Excel", "*.xlsx"), ("All files", "*.*")]
+    pattern = f"*{ext}"
+    return [(f"Files {ext}", pattern), ("All files", "*.*")]
+
+
+def _ensure_save_extension(path: str, default_extension: str) -> str:
+    if not path or not default_extension:
+        return path
+    _root, ext = os.path.splitext(path)
+    if ext:
+        return path
+    suffix = default_extension if default_extension.startswith(".") else f".{default_extension}"
+    return path + suffix
+
+
 def _inline_kind(token: str) -> DialogKind | None:
     m = _INLINE_DIALOG_RE.match(str(token or "").strip())
     if not m:
@@ -174,234 +199,6 @@ def is_inline_dialog_token(value: Any) -> bool:
     return _INLINE_DIALOG_RE.match(value.strip()) is not None
 
 
-def legacy_dialog_specs(p: dict[str, Any], step_type: str) -> list[DialogSpec]:
-    """Преобразует устаревшие флаги *_open_dialog в список dialogs."""
-    out: list[DialogSpec] = []
-    st = str(step_type or "").strip().lower()
-
-    if st == "globals_settings":
-        if param_is_on(p.get("directory_open_dialog")):
-            out.append(
-                DialogSpec(
-                    kind="directory_open",
-                    title=str(p.get("directory_open_dialog_help") or "Выберите каталог"),
-                    assign=_norm_assign_name(p.get("directory_var") or "directory"),
-                    store="variable",
-                    initial=str(p.get("directory_initial") or ""),
-                )
-            )
-        if param_is_on(p.get("file_open_dialog")):
-            out.append(
-                DialogSpec(
-                    kind="file_open",
-                    title=str(p.get("file_open_dialog_help") or "Выберите файл"),
-                    assign=_norm_assign_name(p.get("file_var") or "file_path"),
-                    store="variable",
-                    initial=str(p.get("directory_initial") or ""),
-                    filetypes=parse_filetypes_param(p.get("filetypes")),
-                )
-            )
-        return out
-
-    if st == "load_excel":
-        input_mode = str(p.get("input_mode", "mask")).strip().lower()
-        if param_is_on(p.get("file_open_dialog")) and input_mode == "file":
-            out.append(
-                DialogSpec(
-                    kind="file_open",
-                    title=str(p.get("file_open_dialog_help") or "Выберите файл для загрузки"),
-                    assign="file_path",
-                    initial=str(p.get("directory_initial") or ""),
-                    filetypes=resolve_open_filetypes(p, default_pattern="*.xlsx"),
-                )
-            )
-        if param_is_on(p.get("directory_open_dialog")) and input_mode in ("mask", "latest"):
-            out.append(
-                DialogSpec(
-                    kind="directory_open",
-                    title=str(p.get("directory_open_dialog_help") or "Выберите каталог с файлами Excel"),
-                    assign="directory",
-                    initial=str(p.get("directory_initial") or ""),
-                )
-            )
-        return out
-
-    if st == "save_excel":
-        split_by = str(p.get("split_by_column", "") or "").strip()
-        if param_is_on(p.get("file_open_dialog")):
-            out.append(
-                DialogSpec(
-                    kind="file_save",
-                    title=str(p.get("file_open_dialog_help") or "Укажите файл для сохранения"),
-                    assign="",
-                    initial=str(p.get("directory_initial") or ""),
-                    initial_file=str(p.get("filename") or "result.xlsx"),
-                    default_extension=".xlsx",
-                    assign_dir="out_dir",
-                    assign_name="" if split_by else "filename",
-                )
-            )
-        elif param_is_on(p.get("directory_open_dialog")):
-            out.append(
-                DialogSpec(
-                    kind="directory_open",
-                    title=str(p.get("directory_open_dialog_help") or "Выберите каталог для сохранения"),
-                    assign="out_dir",
-                    initial=str(p.get("directory_initial") or ""),
-                )
-            )
-        return out
-
-    if st == "group_template_export":
-        if param_is_on(p.get("template_open_dialog")):
-            out.append(
-                DialogSpec(
-                    kind="file_open",
-                    title=str(p.get("template_open_dialog_help") or "Выберите Excel-шаблон"),
-                    assign="template_path",
-                    filetypes=[("Excel", "*.xlsx"), ("All files", "*.*")],
-                )
-            )
-        if param_is_on(p.get("directory_open_dialog")):
-            out.append(
-                DialogSpec(
-                    kind="directory_open",
-                    title=str(p.get("directory_open_dialog_help") or "Выберите каталог для сохранения"),
-                    assign="out_dir",
-                )
-            )
-        return out
-
-    if st == "file_ops":
-        operation = str(p.get("operation", "copy")).strip().lower()
-        source_mode = str(p.get("source_mode", "file")).strip().lower()
-
-        source_wants_file = (
-            operation in ("copy", "move", "zip_extract")
-            or (operation == "delete" and source_mode == "file")
-            or (operation == "zip_create" and source_mode == "file")
-        )
-        source_wants_dir = (
-            operation in ("copy_latest", "copy_by_mask")
-            or (operation == "zip_create" and source_mode in ("mask", "latest", "files"))
-            or (operation == "delete" and source_mode != "file")
-        )
-        dest_wants_path = operation in ("copy", "move", "copy_latest", "copy_by_mask", "zip_create")
-        dest_wants_dir = operation in (
-            "copy",
-            "move",
-            "copy_latest",
-            "copy_by_mask",
-            "zip_create",
-            "zip_extract",
-        )
-
-        has_scoped_dir_flags = (
-            _dialog_flag_on(p, "source_directory_open_dialog")
-            or _dialog_flag_on(p, "dest_directory_open_dialog")
-            or _dialog_flag_on(p, "dest_save_dialog")
-        )
-
-        if source_wants_file and _dialog_flag_on(p, "source_file_open_dialog", "file_open_dialog"):
-            fp = str(p.get("source_path", "") or "").strip()
-            out.append(
-                DialogSpec(
-                    kind="file_open",
-                    title=_dialog_help(
-                        p,
-                        "source_file_open_dialog_help",
-                        "Выберите исходный файл",
-                        "file_open_dialog_help",
-                    ),
-                    assign="source_path",
-                    initial=str(p.get("source_directory_initial") or p.get("directory_initial") or ""),
-                    scope="source",
-                    filetypes=resolve_open_filetypes(
-                        {
-                            "filetypes": p.get("source_filetypes") or p.get("filetypes"),
-                            "pattern": p.get("pattern"),
-                        },
-                        default_pattern="*.*",
-                    ),
-                )
-            )
-
-        source_dir_on = _dialog_flag_on(p, "source_directory_open_dialog")
-        if not has_scoped_dir_flags and not source_dir_on:
-            source_dir_on = source_wants_dir and _dialog_flag_on(p, "directory_open_dialog")
-        if source_wants_dir and source_dir_on:
-            out.append(
-                DialogSpec(
-                    kind="directory_open",
-                    title=_dialog_help(
-                        p,
-                        "source_directory_open_dialog_help",
-                        "Выберите исходный каталог",
-                        "directory_open_dialog_help",
-                    ),
-                    assign="directory",
-                    initial=str(p.get("source_directory_initial") or p.get("directory_initial") or ""),
-                    scope="source",
-                )
-            )
-
-        if dest_wants_path and _dialog_flag_on(p, "dest_save_dialog"):
-            dest_path = str(p.get("dest_path", "") or "").strip()
-            filename = (
-                str(p.get("dest_name") or p.get("filename") or "output.zip").strip() or "output.zip"
-            )
-            ext = str(p.get("extension", "") or "").strip()
-            if operation == "zip_create":
-                default_ext = ext if ext.startswith(".") else (f".{ext}" if ext else ".zip")
-            else:
-                default_ext = ext if ext.startswith(".") else (f".{ext}" if ext else "")
-            out.append(
-                DialogSpec(
-                    kind="file_save",
-                    title=_dialog_help(p, "dest_save_dialog_help", "Укажите файл назначения"),
-                    assign="dest_path",
-                    assign_dir="dest_dir",
-                    assign_name="filename",
-                    initial=str(p.get("dest_directory_initial") or p.get("directory_initial") or ""),
-                    scope="dest",
-                    initial_file=os.path.basename(dest_path) if dest_path else filename,
-                    default_extension=default_ext,
-                    filetypes=(
-                        [("ZIP archive", "*.zip"), ("All files", "*.*")]
-                        if operation == "zip_create"
-                        else [("All files", "*.*")]
-                    ),
-                )
-            )
-            return out
-
-        dest_dir_on = _dialog_flag_on(p, "dest_directory_open_dialog")
-        if not has_scoped_dir_flags and not dest_dir_on:
-            dest_dir_on = (
-                dest_wants_dir
-                and _dialog_flag_on(p, "directory_open_dialog")
-                and not source_wants_dir
-            )
-        if dest_wants_dir and dest_dir_on:
-            out.append(
-                DialogSpec(
-                    kind="directory_open",
-                    title=_dialog_help(
-                        p,
-                        "dest_directory_open_dialog_help",
-                        "Выберите каталог назначения",
-                        "directory_open_dialog_help",
-                    ),
-                    assign="dest_dir",
-                    initial=str(p.get("dest_directory_initial") or p.get("directory_initial") or ""),
-                    scope="dest",
-                )
-            )
-        return out
-
-    return out
-
-
 def _resolve_initial_dir(
     ctx: RunContext,
     p: dict[str, Any],
@@ -421,11 +218,7 @@ def _resolve_initial_dir(
     scoped_p = dict(p)
     if initial:
         scoped_p["directory_initial"] = initial
-    return resolve_dialog_initial_dir(
-        scoped_p,
-        fallback=fallback or initial,
-        scope=spec.scope or "",
-    )
+    return resolve_dialog_initial_dir(scoped_p, fallback=fallback or initial)
 
 
 def _run_dialog(ctx: RunContext, p: dict[str, Any], spec: DialogSpec) -> str:
@@ -465,7 +258,7 @@ def _run_dialog(ctx: RunContext, p: dict[str, Any], spec: DialogSpec) -> str:
     )
     ext = spec.default_extension or ""
     defaultextension = ext if ext.startswith(".") else (f".{ext}" if ext else "")
-    filetypes = spec.filetypes or [("All files", "*.*")]
+    filetypes = _infer_save_filetypes(defaultextension, spec.filetypes)
     path = asks(
         title=title,
         initialdir=initialdir,
@@ -475,7 +268,7 @@ def _run_dialog(ctx: RunContext, p: dict[str, Any], spec: DialogSpec) -> str:
     )
     if not path:
         raise ValueError(f"Файл не выбран ({title}).")
-    return path
+    return _ensure_save_extension(path, defaultextension)
 
 
 def _path_is_dir(path: str) -> bool:
@@ -509,10 +302,9 @@ def _assign_dialog_result(
         ctx.variables[spec.assign_dir] = p.get(spec.assign_dir, "")
 
 
-def apply_configured_dialogs(ctx: RunContext, p: dict[str, Any], *, step_type: str) -> None:
-    """Выполнить dialogs[] и устаревшие флаги; записать результаты в params/variables."""
-    specs = parse_dialog_specs(p.get("dialogs") or p.get("open_dialogs"))
-    specs.extend(legacy_dialog_specs(p, step_type))
+def apply_configured_dialogs(ctx: RunContext, p: dict[str, Any]) -> None:
+    """Выполнить dialogs[]; записать результаты в params/variables."""
+    specs = parse_dialog_specs(p.get("dialogs"))
     for i, spec in enumerate(specs):
         path = _run_dialog(ctx, p, spec)
         _assign_dialog_result(ctx, p, spec, path)
@@ -538,11 +330,11 @@ _VAR_EMBED_RE = re.compile(r"@([A-Za-z_][A-Za-z0-9_]*)")
 def resolve_params(ctx: RunContext, params: dict[str, Any], *, step_type: str = "") -> dict[str, Any]:
     """
     Подготовка params шага:
-    1. dialogs[] и устаревшие флаги;
+    1. dialogs[];
     2. подстановка @var и inline @file_open_dialog(…).
     """
     p = copy.deepcopy(params)
-    apply_configured_dialogs(ctx, p, step_type=step_type)
+    apply_configured_dialogs(ctx, p)
     return _resolve_value_deep(p, ctx)
 
 

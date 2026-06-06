@@ -254,10 +254,6 @@ def register_file_ops() -> None:
                 "dialogs": [],
                 "directory_initial": "",
                 "filetypes": [],
-                "file_open_dialog": False,
-                "file_open_dialog_help": "Выберите файл",
-                "directory_open_dialog": False,
-                "directory_open_dialog_help": "Выберите каталог",
             },
         )
     )

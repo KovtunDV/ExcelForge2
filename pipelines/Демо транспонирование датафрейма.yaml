@@ -10,11 +10,7 @@ steps:
     pattern: '*.xlsx'
     recursive: false
     file_path: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data/In_data/group_export_lines.xlsx
-    file_open_dialog: false
-    file_open_dialog_help: Выберите файл для загрузки
     filetypes: []
-    directory_open_dialog: false
-    directory_open_dialog_help: Выберите каталог с файлами Excel
     sheet: Sheet1
     header_mode: first_row
     start_row: 1

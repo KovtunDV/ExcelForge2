@@ -7,7 +7,6 @@ steps:
   params:
     input_mode: mask
     directory: ./pipelines/Demo_data/In_data
-    directory_open_dialog: false
     pattern: out_*.xlsx
     recursive: false
     file_path: ''

@@ -4,6 +4,16 @@ from pathlib import Path
 
 _DOCS_PATH = Path(__file__).resolve().parent / "pipeline_steps.md"
 
+_DIALOGS_SECTION_HEADING = "### Параметр dialogs"
+
+_STEPS_WITH_DIALOGS = frozenset({
+    "globals_settings",
+    "load_excel",
+    "save_excel",
+    "file_ops",
+    "group_template_export",
+})
+
 
 def _read_all() -> str:
     if not _DOCS_PATH.is_file():
@@ -25,10 +35,34 @@ def get_intro() -> str:
     return "\n".join(lines[:first_section]).strip()
 
 
+def get_dialogs_section() -> str:
+    """Блок справки по параметру dialogs из введения документации."""
+    lines = _read_all().splitlines()
+    start: int | None = None
+    for i, line in enumerate(lines):
+        if line.strip() == _DIALOGS_SECTION_HEADING:
+            start = i
+            break
+    if start is None:
+        return ""
+
+    end = len(lines)
+    for j in range(start + 1, len(lines)):
+        stripped = lines[j].strip()
+        if stripped == "---":
+            end = j
+            break
+        if stripped.startswith("## ") and not stripped.startswith("### "):
+            end = j
+            break
+    return "\n".join(lines[start:end]).strip()
+
+
 def get_section_for_step(step_type: str) -> str:
     """
     Возвращает фрагмент Markdown для шага: блок после заголовка `## <step_type>`
-    до следующего заголовка `## ...`.
+    до следующего заголовка `## ...`. Для шагов с `dialogs` добавляет полное
+    описание параметра в конец страницы.
     """
     step_type = (step_type or "").strip()
     if not step_type:
@@ -55,4 +89,11 @@ def get_section_for_step(step_type: str) -> str:
             end = j
             break
     body = "\n".join(lines[start:end]).strip()
+
+    if step_type in _STEPS_WITH_DIALOGS:
+        dialogs = get_dialogs_section()
+        if dialogs:
+            anchor = '<a id="parameter-dialogs"></a>\n\n'
+            body = f"{body}\n\n---\n\n{anchor}{dialogs}".strip()
+
     return f"{header}\n\n{body}" if body else f"{header}\n\n(раздел пуст)"

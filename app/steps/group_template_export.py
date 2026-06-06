@@ -504,10 +504,7 @@ def register_group_template_export() -> None:
                 "sort_within_group": {},
                 "skip_empty_groups": True,
                 "dialogs": [],
-                "directory_open_dialog": False,
-                "directory_open_dialog_help": "Выберите каталог для сохранения файлов",
-                "template_open_dialog": False,
-                "template_open_dialog_help": "Выберите Excel-шаблон",
+                "directory_initial": "",
             },
         )
     )

@@ -123,8 +123,7 @@ def run_globals_settings(ctx: RunContext, step: Step) -> None:
         resolved = _resolve_system_value(item, label=f"system_values[{i}]")
         _set_global(ctx, var, resolved, source="system")
 
-    # 3–4) Диалоги выбора каталога/файла — через params.dialogs или inline @*_dialog(...)
-    # (выполняются в resolve_params до запуска шага)
+    # Диалоги — через params.dialogs или inline @*_dialog(...) (resolve_params до запуска шага)
 
 
 def register_globals_settings() -> None:
@@ -136,15 +135,8 @@ def register_globals_settings() -> None:
             default_params={
                 "values": {},
                 "system_values": [],
-                "directory_open_dialog": False,
-                "directory_var": "directory",
-                "directory_open_dialog_help": "Выберите каталог",
-                "directory_initial": "",
                 "dialogs": [],
-                "file_open_dialog": False,
-                "file_var": "file_path",
-                "file_open_dialog_help": "Выберите файл",
-                "filetypes": [("All files", "*.*")],
+                "directory_initial": "",
             },
         )
     )

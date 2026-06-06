@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Callable
 
 from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
@@ -59,15 +60,38 @@ class GuiDialogHost(QObject):
     def ask_save_filename(self, **kwargs: Any) -> str:
         def _do() -> str:
             title = str(kwargs.get("title", "") or "Сохранить файл")
-            initial = str(kwargs.get("initialdir", "") or "")
+            initialdir = str(kwargs.get("initialdir", "") or "")
+            initialfile = str(kwargs.get("initialfile", "") or "")
+            defaultext = str(kwargs.get("defaultextension", "") or "")
             filetypes = kwargs.get("filetypes")
+
+            initial = initialdir
+            if initialfile:
+                initial = os.path.join(initialdir, initialfile) if initialdir else initialfile
+
             filt = "All files (*.*)"
+            selected_filter = ""
             if filetypes and isinstance(filetypes, list):
                 parts = [f"{d} ({p})" for d, p in filetypes if isinstance(d, str) and isinstance(p, str)]
                 if parts:
                     filt = ";;".join(parts)
-            path, _ = QFileDialog.getSaveFileName(self._parent, title, initial, filt)
-            return path or ""
+                    selected_filter = parts[0]
+
+            path, _ = QFileDialog.getSaveFileName(
+                self._parent,
+                title,
+                initial,
+                filt,
+                selected_filter,
+            )
+            if not path:
+                return ""
+
+            root, ext = os.path.splitext(path)
+            if not ext and defaultext:
+                suffix = defaultext if defaultext.startswith(".") else f".{defaultext}"
+                path = root + suffix
+            return path
 
         return str(self.invoke(_do) or "")
 

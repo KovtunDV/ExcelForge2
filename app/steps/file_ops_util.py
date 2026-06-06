@@ -25,6 +25,20 @@ _ZIP_MIN_MTIME = 315532800.0  # 1980-01-01 UTC — минимум для zipfile
 _ARCHIVE_FILE_EXTENSIONS = {".zip", ".7z", ".tar", ".gz", ".bz2", ".rar"}
 
 
+def _path_key(path: str) -> str:
+    return os.path.normcase(os.path.abspath(path))
+
+
+def _remove_existing_file(path: str) -> None:
+    if not os.path.isfile(path):
+        return
+    try:
+        os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+    except OSError:
+        pass
+    os.remove(path)
+
+
 @dataclass(frozen=True)
 class CopyResult:
     source: str
@@ -480,7 +494,8 @@ def create_zip_archive(
         ensure_parent_dir(ap)
 
     archive_abs = os.path.abspath(ap)
-    filtered_sources = [sf for sf in sources if os.path.abspath(sf.path) != archive_abs]
+    archive_key = _path_key(archive_abs)
+    filtered_sources = [sf for sf in sources if _path_key(sf.path) != archive_key]
 
     root = os.path.abspath(source_root) if source_root else ""
     parent = os.path.dirname(archive_abs) or "."
@@ -500,9 +515,19 @@ def create_zip_archive(
                 _zip_add_file(zf, src, arcname)
                 if log:
                     log(f"file_ops: zip add {src} as {arcname}")
+        if os.path.exists(archive_abs):
+            try:
+                _remove_existing_file(archive_abs)
+            except OSError as e:
+                raise PermissionError(
+                    f"file_ops zip_create: нет доступа для записи архива "
+                    f"(закройте файл или выберите другой путь): {ap}"
+                ) from e
         os.replace(tmp_path, archive_abs)
         tmp_path = None
     except PermissionError as e:
+        if "нет доступа для записи архива" in str(e):
+            raise
         raise PermissionError(
             f"file_ops zip_create: нет доступа для записи архива (закройте файл или выберите другой путь): {ap}"
         ) from e

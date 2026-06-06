@@ -26,6 +26,7 @@ class StepDocumentationDialog(QDialog):
         layout = QVBoxLayout(self)
         self._browser = QTextBrowser()
         self._browser.setOpenExternalLinks(True)
+        self._browser.setOpenLinks(True)
         self._browser.setReadOnly(True)
         layout.addWidget(self._browser)
 

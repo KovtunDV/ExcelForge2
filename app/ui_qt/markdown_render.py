@@ -30,7 +30,7 @@ def markdown_to_html(markdown_text: str) -> str:
 
         body = markdown2.markdown(
             markdown_text,
-            extras=["fenced-code-blocks", "tables", "code-friendly"],
+            extras=["fenced-code-blocks", "tables", "code-friendly", "header-ids"],
         )
     except Exception:
         import html

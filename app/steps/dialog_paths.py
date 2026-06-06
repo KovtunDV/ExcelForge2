@@ -4,7 +4,6 @@ import os
 from typing import Any
 
 from app.pipeline.context import RunContext
-from app.steps.util import param_is_on
 
 
 def _path_is_accessible_dir(path: str) -> bool:
@@ -18,20 +17,9 @@ def resolve_dialog_initial_dir(
     p: dict[str, Any],
     *,
     fallback: str | None = None,
-    scope: str = "",
 ) -> str:
-    """
-    Стартовый каталог для диалога выбора файла/каталога.
-
-    scope: ``source`` | ``dest`` | ``""`` — выбор поля *_directory_initial.
-    """
-    scoped = str(scope or "").strip().lower()
-    if scoped == "source":
-        preferred = str(p.get("source_directory_initial") or p.get("directory_initial") or "").strip()
-    elif scoped == "dest":
-        preferred = str(p.get("dest_directory_initial") or p.get("directory_initial") or "").strip()
-    else:
-        preferred = str(p.get("directory_initial", "") or "").strip()
+    """Стартовый каталог для диалога выбора файла/каталога."""
+    preferred = str(p.get("directory_initial", "") or "").strip()
 
     if _path_is_accessible_dir(preferred):
         return os.path.abspath(preferred)
@@ -45,26 +33,6 @@ def resolve_dialog_initial_dir(
             return parent
 
     return os.getcwd()
-
-
-def _dialog_flag_on(p: dict[str, Any], primary: str, *legacy_keys: str) -> bool:
-    if param_is_on(p.get(primary)):
-        return True
-    for key in legacy_keys:
-        if key in p and param_is_on(p.get(key)):
-            return True
-    return False
-
-
-def _dialog_help(p: dict[str, Any], primary: str, default: str, *legacy_keys: str) -> str:
-    raw = p.get(primary)
-    if raw is not None and str(raw).strip():
-        return str(raw).strip()
-    for key in legacy_keys:
-        raw = p.get(key)
-        if raw is not None and str(raw).strip():
-            return str(raw).strip()
-    return default
 
 
 def parse_filetypes_param(raw: object) -> list[tuple[str, str]] | None:
@@ -99,7 +67,6 @@ def filetypes_from_glob_pattern(pattern: object, *, label_prefix: str = "Фай�
     parts = [x.strip() for x in raw.replace(",", ";").split(";") if x.strip()]
     if not parts:
         parts = ["*.*"]
-    # Tk (Windows): несколько масок в одной группе через пробел: "*.xlsx *.xls"
     glob_pat = " ".join(parts)
     label = f"{label_prefix} ({', '.join(parts)})"
     return [(label, glob_pat), ("All files", "*.*")]

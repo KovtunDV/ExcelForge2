@@ -14,9 +14,30 @@
 
 **Пример:** пайплайн A загружает данные в `glob_raw`; пайплайн B в отладке читает `glob_raw` как `source_df` без повторной загрузки Excel.
 
-### Диалоги выбора файлов и каталогов (универсально)
+### Параметр dialogs
 
-Для шагов с интерактивным выбором путей ( `globals_settings`, `load_excel`, `save_excel`, `file_ops`, `group_template_export` и др.) диалоги выполняются **до основной логики шага** через общий механизм `resolve_params`.
+Для шагов с интерактивным выбором путей (`globals_settings`, `load_excel`, `save_excel`, `file_ops`, `group_template_export`) диалоги выполняются **до основной логики шага** через общий механизм `resolve_params`.
+
+| Поле | Описание |
+|------|----------|
+| `dialogs` | Список описаний диалогов. Пустой `[]` — без интерактивного выбора при запуске. |
+| `directory_initial` | Общий стартовый каталог для диалогов шага (если в элементе `dialogs` не задан `initial`). |
+
+**Элемент списка `dialogs`** — словарь (или строка-алиас `kind`):
+
+| Поле | Описание |
+|------|----------|
+| `kind` / `type` | `file_open` — выбор файла; `directory_open` — выбор каталога; `file_save` — «Сохранить как». Алиасы: `file`, `dir`, `save_as` и др. |
+| `title` / `help` | Заголовок окна диалога. |
+| `assign` / `variable` | Имя параметра шага или переменной (`@var`), куда записать результат. |
+| `store` | `param` (по умолчанию) — только в `params` шага; `variable` — в `ctx.variables`; `both` — в оба места. |
+| `initial` | Стартовый каталог: путь или `@var`. |
+| `filetypes` | Для `file_open`: `[["Excel", "*.xlsx"], ["Все", "*.*"]]`. |
+| `initial_file` | Для `file_save`: имя файла по умолчанию в диалоге. |
+| `default_extension` / `extension` | Для `file_save`: расширение (напр. `.zip`, `.xlsx`); подставляется, если пользователь не ввёл суффикс. |
+| `assign_dir` | Для `file_save`: параметр для каталога (напр. `out_dir`, `dest_dir`). |
+| `assign_name` | Для `file_save`: параметр для имени файла без каталога (напр. `filename`). |
+| `enabled` | `off` / `false` — пропустить этот диалог. |
 
 **Способ 1 — список `dialogs`** (рекомендуется для нескольких диалогов в одном шаге):
 
@@ -46,9 +67,9 @@ dest_path: "@file_save_dialog(Сохранить архив как)"
 directory: "@directory_open_dialog(Каталог с данными)"
 ```
 
-При выполнении шага сначала отрабатывают все диалоги из `dialogs[]`, затем устаревшие флаги (`file_open_dialog`, `directory_open_dialog`, …), затем подстановка `@var` и inline `@*_dialog(...)`.
+При выполнении шага сначала отрабатывают все диалоги из `dialogs[]`, затем подстановка `@var` и inline `@*_dialog(...)`.
 
-Устаревшие флаги по-прежнему поддерживаются для совместимости; для `file_ops` с двумя диалогами предпочтительнее явный `dialogs[]` или `source_*` / `dest_*` флаги.
+Диалоги работают только при запуске из **GUI** (Builder / Runner).
 
 ---
 
@@ -74,16 +95,11 @@ directory: "@directory_open_dialog(Каталог с данными)"
 | `include_service_columns` | `on` / `off` | Добавить служебные столбцы **`_from_file`** и **`_date_file`** в результат. |
 | `from_file_mode` | строка | Что писать в `_from_file`: `basename` — только имя файла; `fullpath` — полный путь. |
 | `date_file_mode` | строка | Что писать в `_date_file`: `modified` — дата изменения (mtime); `created` — дата создания (ctime; на Windows — creation time). |
-| `file_open_dialog` | `on` / `off` | При выполнении шага показать диалог выбора **файла** (только при `input_mode: file`). Результат **перезаписывает** `file_path` из YAML. |
-| `file_open_dialog_help` | строка | Заголовок окна диалога выбора файла (например: «Выбери файл загрузки»). |
-| `filetypes` | Опционально: список пар для фильтра диалога, как в `globals_settings` — `[["Excel", "*.xlsx"], ["Все", "*.*"]]`. Если пусто — фильтр строится из **`pattern`** (та же маска, что для `input_mode: mask`). |
-| `directory_open_dialog` | `on` / `off` | При выполнении показать диалог выбора **каталога** (при `input_mode: mask` или `latest`). Результат **перезаписывает** `directory`. |
-| `directory_open_dialog_help` | строка | Заголовок диалога выбора каталога. |
-| `directory_initial` | строка | Начальный каталог в диалогах выбора файла/каталога. Если пуст или путь недоступен — каталог запуска программы; иначе — указанный каталог (или родительский каталог для `file_path`, если `directory_initial` не задан). |
+| `dialogs` | список | Диалоги выбора файла/каталога — [Параметр dialogs](#parameter-dialogs). Типично: `file_open` → `file_path` при `input_mode: file`; `directory_open` → `directory` при `mask` / `latest`. |
+| `directory_initial` | строка | Начальный каталог в диалогах (`initial` в элементе `dialogs` имеет приоритет). |
+| `filetypes` | список | Фильтр для `file_open` в `dialogs`. Если пусто — из **`pattern`**. |
 
-Значения «включено» для флагов: `true`, `on`, `yes`, `1` (без учёта регистра).
-
-Диалоги работают только при запуске из **GUI** (Builder / Runner): используются стандартные диалоги Qt (`QFileDialog`); в коде шагов имена хуков `tk_askopenfilename` / `tk_askdirectory` сохранены для совместимости.
+Диалоги работают только при запуске из **GUI** (Builder / Runner).
 
 ### Поведение
 
@@ -145,14 +161,8 @@ params:
 |----------|----------|
 | `values` | Словарь `{ "@var": value }` или `{ "var": value }`. Значения могут быть строками, числами, списками и т.д. Также допускается **системное значение** — вложенный словарь `{ system: date \| time \| datetime, format: "...", days_offset: N }`. |
 | `system_values` | Список системных переменных: `{ var, type, format?, days_offset? }`. `type`: `date`, `time`, `datetime`. `format` — шаблон `strftime` (Python). `days_offset` — смещение даты на ±N дней (для `date` и `datetime`). |
-| `directory_open_dialog` | `on/off`: показать диалог выбора каталога и сохранить результат в переменную `directory_var`. |
-| `directory_var` | Имя переменной для каталога (например `directory_n` или `@directory_n`). |
-| `directory_open_dialog_help` | Заголовок диалога выбора каталога. |
-| `directory_initial` | Начальный каталог в диалогах. Если пуст или путь недоступен — каталог запуска программы. |
-| `file_open_dialog` | `on/off`: показать диалог выбора файла и сохранить результат в `file_var`. |
-| `file_var` | Имя переменной для файла (например `file_path` или `@file_path`). |
-| `file_open_dialog_help` | Заголовок диалога выбора файла. |
-| `filetypes` | `filetypes` для Tk (опционально). |
+| `dialogs` | Список диалогов — [Параметр dialogs](#parameter-dialogs). Для записи в переменные пайплайна укажите `store: variable` и `assign: имя_переменной`. |
+| `directory_initial` | Начальный каталог в диалогах. |
 
 ### Системные дата и время
 
@@ -185,8 +195,11 @@ params:
     - var: stamp
       type: datetime
       format: "%Y%m%d_%H%M%S"
-  directory_open_dialog: off
-  file_open_dialog: off
+  dialogs:
+    - kind: directory_open
+      title: "Выберите каталог"
+      assign: directory_n
+      store: variable
 ```
 
 Системное значение можно задать и внутри `values`:
@@ -226,11 +239,8 @@ params:
 | `name_glob` | Маска имён (`fnmatch`, как в `concat_dfs`): `sheet_*`, `part_*`. Если `dataframes` пуст — все DF из контекста, совпавшие с маской; если оба заданы — фильтр списка `dataframes`. |
 | `out_dir` | Каталог сохранения. |
 | `filename` | Имя файла при записи **одного** файла (без split). |
-| `file_open_dialog` | `on` / `off` | При выполнении — диалог **«Сохранить как»**: полный путь к файлу задаёт `out_dir` (каталог) и `filename` (имя файла), **переопределяя** значения из YAML. Если задан `split_by_column`, обновляется только `out_dir` (имена файлов по группам — по `split_filename_mask`). |
-| `file_open_dialog_help` | строка | Заголовок диалога сохранения файла. |
-| `directory_open_dialog` | `on` / `off` | Диалог выбора **каталога**; перезаписывает только `out_dir`. Имеет смысл, если `file_open_dialog` выключен. |
-| `directory_open_dialog_help` | строка | Заголовок диалога каталога. |
-| `directory_initial` | строка | Начальный каталог в диалогах. Если пуст или путь недоступен — каталог запуска программы; иначе — указанный каталог (или `out_dir`, если `directory_initial` не задан). При включённом `file_open_dialog` проверка `out_dir`/`filename` из YAML выполняется **после** диалога. |
+| `dialogs` | Диалоги — [Параметр dialogs](#parameter-dialogs). `file_save` → `out_dir` + `filename`; `directory_open` → только `out_dir`. При `split_by_column` для `file_save` обновляется только `out_dir`. |
+| `directory_initial` | Начальный каталог в диалогах. |
 | `columns` | Список имён колонок для выгрузки; `[]` — все колонки. |
 | `sheet_name` | Имя листа (режим **`single`** / шаблон). В **`mask_sheets`** не используется — лист называется **как имя DF** (санитизация под Excel: до 31 символа, без `[]:*?/\\`). |
 | `start_row`, `start_col` | Левый верх ячейки области записи (**1-based**): для шаблона и для простой записи без шаблона. |
@@ -241,8 +251,6 @@ params:
 | `template_column_map` | Словарь `{ "колонка_DF": номер_колонки_Excel }` — запись в **абсолютные** номера колонок листа (1=A, 2=B, …). Если пусто — блок данных подряд с `start_col`. |
 | `split_by_column` | Непустое имя колонки — разбить выгрузку на несколько файлов по уникальным значениям. |
 | `split_filename_mask` | Шаблон имени файла; подстановка `{group}` из значения группирующей колонки. |
-
-Если одновременно включены `file_open_dialog` и `directory_open_dialog`, при выполнении вызывается **только** диалог сохранения файла (он задаёт и каталог, и имя).
 
 ### Запись без шаблона: `writer_mode` и `if_sheet_exists`
 
@@ -408,8 +416,8 @@ params:
 | `row_filter` | Выражение фильтрации (как в `filtration`) перед группировкой. |
 | `sort_within_group` | `{column, ascending}` — сортировка строк внутри группы. |
 | `skip_empty_groups` | `true` — не создавать файл для пустых групп. |
-| `directory_open_dialog` | Диалог выбора `out_dir` (GUI). |
-| `template_open_dialog` | Диалог выбора `template_path` (GUI). |
+| `dialogs` | Диалоги — [Параметр dialogs](#parameter-dialogs). `file_open` → `template_path`, `directory_open` → `out_dir`. |
+| `directory_initial` | Начальный каталог в диалогах. |
 
 ### Пример
 
@@ -535,16 +543,16 @@ params:
 - `op`: `and` или `or`.
 - `items`: список условий `{ col, cmp, value }`.
 
-**Операторы `cmp`:** `==`, `!=`, `>`, `>=`, `<`, `<=`, `contains`, `startswith`, `endswith`, `in`, `not_in`, `is_na`, `not_na`, `str_len`, а также сокращения `len_eq` … `len_le`.
+**Операторы `cmp`:** `==`, `!=`, `>`, `>=`, `<`, `<=`, `contains`, `startswith`, `endswith`, `in`, `not_in`, `is_na`, `not_na`, `str_len`.
 
 - Для `in` / `not_in` в `value` — строка `"a,b,c"` или YAML-массив значений.
 - Для `is_na` / `not_na` поле `value` не используется.
 
-### Длина текста в ячейке (`str_len` и `len_*`)
+### Длина текста в ячейке (`str_len`)
 
-Идея одна и та же: берётся длина **строкового** представления значения ячейки; `NaN` / пропуск pandas обрабатываются как пустая строка (**длина 0**). Дальше эта длина сравнивается с целым числом **n**.
+Идея: берётся длина **строкового** представления значения ячейки; `NaN` / пропуск pandas обрабатываются как пустая строка (**длина 0**). Дальше эта длина сравнивается с целым числом **n**.
 
-**Рекомендуемый вариант — `str_len`:** в `value` передаётся словарь с полем **`op`** (вид сравнения) и **`n`** (целое):
+В `value` передаётся словарь с полем **`op`** (вид сравнения) и **`n`** (целое):
 
 | `op` (можно писать и коротко) | Смысл |
 |-------------------------------|--------|
@@ -560,17 +568,6 @@ params:
 ```yaml
 - { col: "Текст", cmp: "str_len", value: { op: ">=", n: 3 } }
 ```
-
-**Сокращения `len_*`** — то же самое, только вид сравнения зашит в имя оператора, а в `value` указывается **одно число** n (без словаря):
-
-| `cmp` | Эквивалент `str_len` |
-|-------|----------------------|
-| `len_eq` | `{ op: "==", n: … }` |
-| `len_ne` | `{ op: "!=", n: … }` |
-| `len_gt` | `{ op: ">", n: … }` |
-| `len_ge` | `{ op: ">=", n: … }` |
-| `len_lt` | `{ op: "<", n: … }` |
-| `len_le` | `{ op: "<=", n: … }` |
 
 ### Пример
 
@@ -1320,7 +1317,7 @@ params:
 
 #### Диалоги
 
-Используйте универсальный параметр **`dialogs`** (см. раздел «Диалоги выбора файлов и каталогов» в начале документа) или inline `@file_open_dialog(…)` / `@directory_open_dialog(…)` / `@file_save_dialog(…)` в путях.
+Параметр **`dialogs`** и inline-токены `@file_open_dialog(…)` / `@directory_open_dialog(…)` / `@file_save_dialog(…)` — [Параметр dialogs](#parameter-dialogs).
 
 Пример для `zip_create` (каталог источника + «Сохранить как»):
 
@@ -1338,8 +1335,6 @@ dialogs:
     default_extension: .zip
     initial: "@archive_dir"
 ```
-
-**Устаревшие флаги** (совместимость): `source_file_open_dialog`, `source_directory_open_dialog`, `dest_save_dialog`, `dest_directory_open_dialog`; алиасы `file_open_dialog`, `directory_open_dialog`. Для `source_*` / `dest_*` можно задать `source_directory_initial`, `dest_directory_initial`, `directory_initial`.
 
 ### Операции
 

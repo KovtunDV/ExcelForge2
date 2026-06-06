@@ -22,9 +22,6 @@ from PySide6.QtWidgets import (
 
 from app.io.yaml_io import load_pipeline_yaml
 from app.pipeline.context import RunContext, create_run_context
-from app.pipeline.schema import Pipeline
-from app.steps.dialog_paths import resolve_dialog_initial_dir
-from app.steps.util import param_is_on
 from app.ui_qt.log_bridge import LogBridge
 from app.ui_qt.pipeline_qt_hooks import bind_qt_dialogs_to_context
 from app.ui_qt.pipeline_worker import PipelineRunConfig, PipelineWorker
@@ -173,48 +170,6 @@ class RunnerView(QWidget):
         except Exception as e:  # noqa: BLE001
             self.info_text.setPlainText(f"Ошибка загрузки: {e}")
 
-    def _prepare_pipeline(self, p: Pipeline) -> Pipeline:
-        for step in p.steps:
-            if step.type != "load_excel":
-                continue
-            params = dict(step.params)
-            input_mode = str(params.get("input_mode", "mask"))
-            if input_mode == "file":
-                if param_is_on(params.get("file_open_dialog")):
-                    continue
-                if not str(params.get("file_path", "")).strip():
-                    initial = resolve_dialog_initial_dir(
-                        params,
-                        fallback=str(params.get("file_path", "") or ""),
-                    )
-                    fp, _ = QFileDialog.getOpenFileName(
-                        self,
-                        "Выберите Excel файл",
-                        initial,
-                        "Excel (*.xlsx *.xlsm *.xls);;All files (*.*)",
-                    )
-                    if not fp:
-                        raise RuntimeError("Не выбран входной файл для load_excel.")
-                    params["file_path"] = fp
-            if input_mode in ("mask", "latest"):
-                if param_is_on(params.get("directory_open_dialog")):
-                    continue
-                if not str(params.get("directory", "")).strip():
-                    initial = resolve_dialog_initial_dir(
-                        params,
-                        fallback=str(params.get("directory", "") or ""),
-                    )
-                    d = QFileDialog.getExistingDirectory(
-                        self,
-                        "Выберите каталог с Excel файлами",
-                        initial,
-                    )
-                    if not d:
-                        raise RuntimeError("Не выбран каталог для load_excel.")
-                    params["directory"] = d
-            step.params = params
-        return p
-
     def _run_selected(self) -> None:
         if self._running:
             return
@@ -229,7 +184,6 @@ class RunnerView(QWidget):
         path = os.path.join(self._pipelines_path(), sel)
         try:
             pipeline = load_pipeline_yaml(path)
-            pipeline = self._prepare_pipeline(pipeline)
             pipeline.validate()
         except Exception as e:  # noqa: BLE001
             QMessageBox.critical(self, "ExcelForge", f"Не удалось загрузить пайплайн:\n{e}")

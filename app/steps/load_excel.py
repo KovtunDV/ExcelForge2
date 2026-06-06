@@ -116,14 +116,14 @@ def run_load_excel(ctx: RunContext, step: Step) -> None:
         f = str(p.get("file_path", "") or "").strip()
         if not f:
             raise ValueError(
-                "load_excel: задайте file_path или включите file_open_dialog для выбора файла"
+                "load_excel: задайте file_path или добавьте диалог file_open в params.dialogs"
             )
         to_load = [scan_single_file(f)]
     else:
         directory = str(p.get("directory", "") or "").strip()
         if not directory:
             raise ValueError(
-                "load_excel: задайте directory или включите directory_open_dialog для выбора каталога"
+                "load_excel: задайте directory или добавьте диалог directory_open в params.dialogs"
             )
         pattern = str(p.get("pattern", "*.xlsx"))
         scanned = scan_directory_files(directory, pattern, recursive=recursive)
@@ -196,12 +196,8 @@ def register_load_excel() -> None:
                 "pattern": "*.xlsx",
                 "recursive": False,
                 "file_path": "",
-                "file_open_dialog": False,
-                "file_open_dialog_help": "Выберите файл для загрузки",
                 "filetypes": [],
                 "dialogs": [],
-                "directory_open_dialog": False,
-                "directory_open_dialog_help": "Выберите каталог с файлами Excel",
                 "directory_initial": "",
                 "sheet": "Sheet1",
                 "header_mode": "first_row",  # first_row|letters|numbers

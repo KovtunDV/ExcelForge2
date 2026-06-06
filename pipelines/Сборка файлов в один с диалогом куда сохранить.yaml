@@ -7,7 +7,6 @@ steps:
   params:
     input_mode: mask
     directory: ./pipelines/Demo_data/In_data
-    directory_open_dialog: false
     pattern: out_*.xlsx
     recursive: false
     file_path: ''
@@ -21,8 +20,14 @@ steps:
   type: save_excel
   params:
     source_df: df_main
-    file_open_dialog: true
-    out_dir: null
+    dialogs:
+    - kind: directory_open
+      title: Укажите каталог  для сохранения
+      assign: out_dir
+      assign_name: filename
+      initial_file: result.xlsx
+      default_extension: .xlsx
+    out_dir: '@out_dir'
     filename: result.xlsx
     columns: []
     template_path: ''

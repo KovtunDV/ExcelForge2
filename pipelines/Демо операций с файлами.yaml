@@ -7,16 +7,15 @@ steps:
   params:
     values: {}
     system_values: []
-    directory_open_dialog: false
-    directory_var: directory
-    directory_open_dialog_help: Выберите каталог
-    directory_initial: .\pipelines
-    file_open_dialog: true
-    file_var: file_path
-    file_open_dialog_help: Выберите файл
-    filetypes:
-    - - All files
-      - '*.*'
+    dialogs:
+    - kind: file_open
+      title: Выберите файл
+      assign: file_path
+      store: variable
+      initial: .\pipelines
+      filetypes:
+      - - All files
+        - '*.*'
   comment: Создание архива
 - id: file_ops_1
   type: file_ops
@@ -56,3 +55,35 @@ steps:
     directory_initial: T:\доки
     filetypes: []
   comment: Создание архива
+- id: file_ops_2
+  type: file_ops
+  params:
+    operation: copy_latest
+    source_mode: file
+    source_path: ''
+    files: []
+    directory: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data
+    pattern: '*.*'
+    patterns: []
+    recursive: false
+    include_dirs: []
+    exclude_dirs: []
+    dest_dir: C:/Users/kovtu.CODER/ExcelForge2/pipelines/Demo_data/Temp
+    dest_path: ''
+    dest_name: ''
+    filename: ''
+    prefix: ''
+    suffix: ''
+    extension: ''
+    filename_mask: ''
+    inc_start: 1
+    inc_step: 1
+    inc_position: false
+    preserve_structure: false
+    on_conflict: overwrite
+    ensure_dirs: true
+    result_var: ''
+    dialogs: []
+    directory_initial: ''
+    filetypes: []
+  comment: Копирование самого свежего из каталога

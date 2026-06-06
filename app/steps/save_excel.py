@@ -254,7 +254,7 @@ def run_save_excel(ctx: RunContext, step: Step) -> None:
     export_mode = _normalize_export_mode(p.get("export_mode", "single"))
     out_dir = str(p.get("out_dir", "") or "").strip()
     if not out_dir:
-        raise ValueError("save_excel: задайте out_dir или включите диалог выбора каталога/файла")
+        raise ValueError("save_excel: задайте out_dir или добавьте диалог в params.dialogs")
     filename = str(p.get("filename", "") or "").strip() or "result.xlsx"
 
     columns = _parse_columns_param(p.get("columns"))
@@ -427,12 +427,8 @@ def register_save_excel() -> None:
                 "name_glob": "",
                 "out_dir": "",
                 "filename": "result.xlsx",
-                "file_open_dialog": False,
-                "file_open_dialog_help": "Укажите файл для сохранения",
-                "directory_open_dialog": False,
-                "directory_open_dialog_help": "Выберите каталог для сохранения",
-                "directory_initial": "",
                 "dialogs": [],
+                "directory_initial": "",
                 "columns": [],
                 "template_path": "",
                 "template_write_mode": "overwrite",  # overwrite|update

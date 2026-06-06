@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Callable
 
 from app.pipeline.context import RunContext
 from app.pipeline.registry import REGISTRY
@@ -21,14 +21,6 @@ class RunResult:
     ok: bool
     executed_steps: int
     error: str | None = None
-
-
-def _resolve_step_params(params: dict[str, Any], variables: dict[str, Any]) -> dict[str, Any]:
-    """Устаревший API: только @var без диалогов. Используйте resolve_params(ctx, params)."""
-    from app.pipeline.context import RunContext
-
-    ctx = RunContext(variables=dict(variables))
-    return resolve_params(ctx, params)
 
 
 def run_pipeline(

@@ -708,19 +708,22 @@ class BuilderView(QWidget):
         if not isinstance(values, dict):
             QMessageBox.critical(self, "ExcelForge", "globals_settings: params.values должен быть словарём.")
             return
-        var = self._norm_global_var_name(params.get("directory_var"), "directory")
+        dialog = self._find_dialog_entry(params, "directory_open", "directory", "dir")
+        var = self._norm_global_var_name(
+            (dialog or {}).get("assign"),
+            "directory",
+        )
+        title = str((dialog or {}).get("title") or "Выберите каталог")
         current = values.get(var)
         initial = resolve_dialog_initial_dir(
             params,
             fallback=str(current or params.get("directory_initial") or ""),
         )
-        title = str(params.get("directory_open_dialog_help") or "Выберите каталог")
         d = QFileDialog.getExistingDirectory(self, title, initial)
         if not d:
             return
         values[var] = d
         params["values"] = values
-        params["directory_open_dialog"] = False
         params["directory_initial"] = d
         self._write_params_text(params)
         self._mark_dirty()
@@ -738,10 +741,14 @@ class BuilderView(QWidget):
         if not isinstance(values, dict):
             QMessageBox.critical(self, "ExcelForge", "globals_settings: params.values должен быть словарём.")
             return
-        var = self._norm_global_var_name(params.get("file_var"), "file_path")
+        dialog = self._find_dialog_entry(params, "file_open", "file", "open_file")
+        var = self._norm_global_var_name(
+            (dialog or {}).get("assign"),
+            "file_path",
+        )
+        title = str((dialog or {}).get("title") or "Выберите файл")
         current = values.get(var)
         initial_dir = resolve_dialog_initial_dir(params, fallback=str(current or ""))
-        title = str(params.get("file_open_dialog_help") or "Выберите файл")
         fp, _ = QFileDialog.getOpenFileName(
             self,
             title,
@@ -752,9 +759,19 @@ class BuilderView(QWidget):
             return
         values[var] = fp
         params["values"] = values
-        params["file_open_dialog"] = False
         self._write_params_text(params)
         self._mark_dirty()
+
+    @staticmethod
+    def _find_dialog_entry(params: dict, *kinds: str) -> dict | None:
+        kind_set = {k.strip().lower() for k in kinds}
+        for raw in params.get("dialogs") or []:
+            if not isinstance(raw, dict):
+                continue
+            kind = str(raw.get("kind") or raw.get("type") or "").strip().lower()
+            if kind in kind_set:
+                return raw
+        return None
 
     def _reset_params_to_default(self) -> None:
         idx = self._active_step_index

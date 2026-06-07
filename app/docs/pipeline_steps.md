@@ -1051,7 +1051,7 @@ params:
 
 **Назначение:** операции над датафреймом без Excel: новый столбец как текстовая склейка, выбор подмножества столбцов (по именам или позициям), подстановка значений из другого DF по совпадению ключа, удаление строк с пустыми ячейками, заполнение пустых ячеек.
 
-Поле **`operation`**: `concat_column` \| `calc_column` \| `apply_transform` \| `select_columns` \| `map_lookup` \| `drop_empty` \| `fill_empty`.
+Поле **`operation`**: `concat_column` \| `calc_column` \| `apply_transform` \| `select_columns` \| `map_lookup` \| `drop_empty` \| `fill_empty` \| `limit_rows`.
 
 Общие поля: `source_df`, `target_df` (пусто или совпадает с `source_df` — изменение на месте; иначе результат копируется в новое имя DF).
 
@@ -1315,6 +1315,52 @@ params:
   fill_value: "—"
   scope: all_columns
   treat_whitespace_as_empty: true
+```
+
+### limit_rows
+
+Ограниченный выбор строк (аналог `head` / `tail` / `sample` / `iloc` / `nsmallest` / `nlargest`). Результат — новый DF с уменьшенным числом строк; столбцы сохраняются.
+
+| Параметр | Описание |
+|----------|----------|
+| `limit_mode` | `head` \| `tail` \| `sample` \| `iloc` \| `nsmallest` \| `nlargest` (алиасы: `first`, `last`, `random`, `slice`, `smallest`, `largest` и др.). |
+| `n` / `count` | Число строк для `head`, `tail`, `sample`, `nsmallest`, `nlargest` (по умолчанию **10**). |
+| `start_row`, `end_row` | Для `iloc`: номера строк **с 1**, конец **включительно** (строки 11–20 → `start_row: 11`, `end_row: 20`, эквивалент `df.iloc[10:20]`). |
+| `source_column` / `column` | Столбец для `nsmallest` / `nlargest`. |
+| `random_state` | Seed для `sample` (воспроизводимая выборка). |
+
+Примеры:
+
+```yaml
+type: df_assign
+params:
+  operation: limit_rows
+  source_df: df_main
+  target_df: df_preview
+  limit_mode: head
+  n: 10
+```
+
+```yaml
+type: df_assign
+params:
+  operation: limit_rows
+  source_df: df_main
+  target_df: df_main
+  limit_mode: iloc
+  start_row: 11
+  end_row: 20
+```
+
+```yaml
+type: df_assign
+params:
+  operation: limit_rows
+  source_df: df_main
+  target_df: df_top
+  limit_mode: nlargest
+  source_column: Сумма
+  n: 5
 ```
 
 ---

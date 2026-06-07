@@ -159,6 +159,91 @@ def _apply_transform_to_series(s: pd.Series, spec: dict[str, Any]) -> pd.Series:
     )
 
 
+def _parse_positive_int(raw: Any, param: str, *, default: int | None = None) -> int:
+    if raw is None or raw == "":
+        if default is not None:
+            return default
+        raise ValueError(f"limit_rows: задайте {param}")
+    try:
+        val = int(raw)
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"limit_rows: {param} должно быть целым числом, получено: {raw!r}") from e
+    if val <= 0:
+        raise ValueError(f"limit_rows: {param} должно быть > 0, получено: {val}")
+    return val
+
+
+def _apply_limit_rows(df: pd.DataFrame, p: dict[str, Any], *, src_name: str) -> pd.DataFrame:
+    mode = str(p.get("limit_mode") or p.get("mode") or "head").strip().lower()
+
+    if mode in ("head", "first", "top"):
+        n = _parse_positive_int(p.get("n") or p.get("count"), "n", default=10)
+        return df.head(n).copy()
+
+    if mode in ("tail", "last", "bottom"):
+        n = _parse_positive_int(p.get("n") or p.get("count"), "n", default=10)
+        return df.tail(n).copy()
+
+    if mode in ("sample", "random"):
+        n = _parse_positive_int(p.get("n") or p.get("count"), "n", default=10)
+        rs_raw = p.get("random_state")
+        random_state: int | None
+        if rs_raw is None or rs_raw == "":
+            random_state = None
+        else:
+            random_state = int(rs_raw)
+        take = min(n, len(df))
+        if take == 0:
+            return df.iloc[0:0].copy()
+        return df.sample(n=take, random_state=random_state).copy()
+
+    if mode in ("iloc", "slice", "range"):
+        start_raw = p.get("start_row")
+        if start_raw is None or start_raw == "":
+            start_raw = p.get("slice_start") or p.get("start")
+        end_raw = p.get("end_row")
+        if end_raw is None or end_raw == "":
+            end_raw = p.get("slice_end") or p.get("end")
+        if start_raw is None or start_raw == "" or end_raw is None or end_raw == "":
+            raise ValueError(
+                "limit_rows iloc: задайте start_row и end_row (1-based, конец включительно; "
+                "эквивалент df.iloc[start-1:end])"
+            )
+        try:
+            start_row = int(start_raw)
+            end_row = int(end_raw)
+        except (TypeError, ValueError) as e:
+            raise ValueError("limit_rows iloc: start_row и end_row должны быть целыми") from e
+        if start_row < 1 or end_row < 1:
+            raise ValueError("limit_rows iloc: номера строк должны быть >= 1")
+        if start_row > end_row:
+            raise ValueError("limit_rows iloc: start_row не может быть больше end_row")
+        return df.iloc[start_row - 1 : end_row].copy()
+
+    if mode in ("nsmallest", "smallest", "min_rows"):
+        col = str(p.get("source_column") or p.get("column") or "").strip()
+        if not col:
+            raise ValueError("limit_rows nsmallest: задайте source_column")
+        if col not in df.columns:
+            raise ValueError(f"Column not found in {src_name}: {col}")
+        n = _parse_positive_int(p.get("n") or p.get("count"), "n", default=10)
+        return df.nsmallest(n, col).copy()
+
+    if mode in ("nlargest", "largest", "max_rows"):
+        col = str(p.get("source_column") or p.get("column") or "").strip()
+        if not col:
+            raise ValueError("limit_rows nlargest: задайте source_column")
+        if col not in df.columns:
+            raise ValueError(f"Column not found in {src_name}: {col}")
+        n = _parse_positive_int(p.get("n") or p.get("count"), "n", default=10)
+        return df.nlargest(n, col).copy()
+
+    raise ValueError(
+        f"limit_rows: неизвестный limit_mode {mode!r}. "
+        "Доступно: head, tail, sample, iloc, nsmallest, nlargest"
+    )
+
+
 def _ensure_assignable_target_column(
     work: pd.DataFrame, tgt_col: str, transformed: pd.Series
 ) -> None:
@@ -382,6 +467,15 @@ def run_df_assign(ctx: RunContext, step: Step) -> None:
             f"df_assign calc_column: {src_name} -> {tgt_name}, {col_out} = {expr} (type={value_type})"
         )
 
+    elif op in ("limit_rows", "limited_output", "row_limit"):
+        n0 = len(work)
+        mode = str(p.get("limit_mode") or p.get("mode") or "head").strip().lower()
+        work = _apply_limit_rows(work, p, src_name=src_name)
+        ctx.logger.info(
+            f"df_assign limit_rows: {src_name} -> {tgt_name}, "
+            f"mode={mode}, rows {n0} -> {len(work)}"
+        )
+
     elif op in ("apply_transform", "conditional_assign"):
         tgt_col = str(get_required_param(p, "target_column"))
         spec = _parse_transform_spec(p.get("transform"))
@@ -436,7 +530,7 @@ def run_df_assign(ctx: RunContext, step: Step) -> None:
     else:
         raise ValueError(
             f"Unknown operation: {op!r}. Use concat_column, select_columns, map_lookup, "
-            "drop_empty, fill_empty, calc_column, apply_transform."
+            "drop_empty, fill_empty, calc_column, apply_transform, limit_rows."
         )
 
     ctx.df_store[tgt_name] = work
@@ -481,6 +575,12 @@ def register_df_assign() -> None:
                 # fill_empty
                 "fill_value": "",
                 "scope": "listed",
+                # limit_rows
+                "limit_mode": "head",
+                "n": 10,
+                "start_row": 1,
+                "end_row": 10,
+                "random_state": None,
             },
         )
     )

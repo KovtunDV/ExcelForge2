@@ -17,6 +17,8 @@ class Step:
     type: str
     params: dict[str, Any] = field(default_factory=dict)
     comment: str = ""
+    # Исходный YAML params с комментариями (# пояснение) для round-trip в редакторе и файле.
+    params_yaml: str = ""
 
 
 @dataclass

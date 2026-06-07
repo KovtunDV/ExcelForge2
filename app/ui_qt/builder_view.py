@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 from typing import Callable
 
-import yaml
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (
@@ -24,6 +23,14 @@ from PySide6.QtWidgets import (
 )
 
 from app.io.yaml_io import load_pipeline_yaml, save_pipeline_yaml
+from ruamel.yaml.comments import CommentedMap
+
+from app.io.yaml_roundtrip import (
+    dump_mapping_to_str,
+    load_mapping_from_str,
+    params_text_for_editor,
+    to_plain_dict,
+)
 from app.pipeline.context import RunContext, create_run_context
 from app.pipeline.global_context import list_global_names
 from app.pipeline.registry import REGISTRY
@@ -461,7 +468,7 @@ class BuilderView(QWidget):
         self.edit_step_id.setText(step.id)
         self.edit_step_type.setText(step.type)
         self.params_text.setPlainText(
-            yaml.safe_dump(step.params or {}, sort_keys=False, allow_unicode=True)
+            params_text_for_editor(step.params or {}, step.params_yaml)
         )
         self.step_comment_text.setPlainText(step.comment or "")
         self._suppress_dirty = False
@@ -509,13 +516,13 @@ class BuilderView(QWidget):
         step = self.pipeline.steps[idx]
         step.id = self.edit_step_id.text().strip()
         try:
-            params = yaml.safe_load(self.params_text.toPlainText()) or {}
-            if not isinstance(params, dict):
-                raise ValueError("Params YAML должен быть словарём (mapping).")
+            text = self.params_text.toPlainText().replace("\r\n", "\n")
+            params_cm = load_mapping_from_str(text)
+            step.params_yaml = text.rstrip("\n")
+            step.params = to_plain_dict(params_cm)
         except Exception as e:  # noqa: BLE001
             QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
             return
-        step.params = params
         step.comment = self.step_comment_text.toPlainText().replace("\r\n", "\n").rstrip("\n")
         self._mark_dirty()
         self._refresh_steps_list()
@@ -528,14 +535,14 @@ class BuilderView(QWidget):
             return None
         return self.pipeline.steps[idx]
 
-    def _read_params_text(self) -> dict:
-        params = yaml.safe_load(self.params_text.toPlainText()) or {}
-        if not isinstance(params, dict):
-            raise ValueError("Params YAML должен быть словарём (mapping).")
-        return params
+    def _read_params_mapping(self):
+        return load_mapping_from_str(self.params_text.toPlainText())
 
-    def _write_params_text(self, params: dict) -> None:
-        self.params_text.setPlainText(yaml.safe_dump(params, sort_keys=False, allow_unicode=True))
+    def _read_params_dict(self) -> dict:
+        return to_plain_dict(self._read_params_mapping())
+
+    def _write_params_mapping(self, data) -> None:
+        self.params_text.setPlainText(dump_mapping_to_str(data).rstrip("\n"))
         self._mark_step_editor_dirty()
 
     def _pick_load_excel_file(self) -> None:
@@ -544,7 +551,8 @@ class BuilderView(QWidget):
             return
         if step.type == "file_ops":
             try:
-                params = self._read_params_text()
+                params = self._read_params_dict()
+                data = self._read_params_mapping()
             except Exception as e:  # noqa: BLE001
                 QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
                 return
@@ -557,14 +565,15 @@ class BuilderView(QWidget):
             )
             if not fp:
                 return
-            params["source_path"] = fp
-            self._write_params_text(params)
+            data["source_path"] = fp
+            self._write_params_mapping(data)
             self._mark_dirty()
             return
         if step.type != "load_excel":
             return
         try:
-            params = self._read_params_text()
+            params = self._read_params_dict()
+            data = self._read_params_mapping()
         except Exception as e:  # noqa: BLE001
             QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
             return
@@ -577,9 +586,9 @@ class BuilderView(QWidget):
         )
         if not fp:
             return
-        params["file_path"] = fp
-        params["input_mode"] = "file"
-        self._write_params_text(params)
+        data["file_path"] = fp
+        data["input_mode"] = "file"
+        self._write_params_mapping(data)
         self._mark_dirty()
 
     def _pick_load_excel_dir(self) -> None:
@@ -588,7 +597,8 @@ class BuilderView(QWidget):
             return
         if step.type == "file_ops":
             try:
-                params = self._read_params_text()
+                params = self._read_params_dict()
+                data = self._read_params_mapping()
             except Exception as e:  # noqa: BLE001
                 QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
                 return
@@ -600,14 +610,15 @@ class BuilderView(QWidget):
             )
             if not d:
                 return
-            params["directory"] = d
-            self._write_params_text(params)
+            data["directory"] = d
+            self._write_params_mapping(data)
             self._mark_dirty()
             return
         if step.type != "load_excel":
             return
         try:
-            params = self._read_params_text()
+            params = self._read_params_dict()
+            data = self._read_params_mapping()
         except Exception as e:  # noqa: BLE001
             QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
             return
@@ -619,10 +630,10 @@ class BuilderView(QWidget):
         )
         if not d:
             return
-        params["directory"] = d
+        data["directory"] = d
         if str(params.get("input_mode", "mask")) == "file":
-            params["input_mode"] = "mask"
-        self._write_params_text(params)
+            data["input_mode"] = "mask"
+        self._write_params_mapping(data)
         self._mark_dirty()
 
     def _pick_save_excel_out_dir(self) -> None:
@@ -631,7 +642,8 @@ class BuilderView(QWidget):
             return
         if step.type == "file_ops":
             try:
-                params = self._read_params_text()
+                params = self._read_params_dict()
+                data = self._read_params_mapping()
             except Exception as e:  # noqa: BLE001
                 QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
                 return
@@ -643,14 +655,15 @@ class BuilderView(QWidget):
             )
             if not d:
                 return
-            params["dest_dir"] = d
-            self._write_params_text(params)
+            data["dest_dir"] = d
+            self._write_params_mapping(data)
             self._mark_dirty()
             return
         if step.type not in ("save_excel", "group_template_export"):
             return
         try:
-            params = self._read_params_text()
+            params = self._read_params_dict()
+            data = self._read_params_mapping()
         except Exception as e:  # noqa: BLE001
             QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
             return
@@ -662,8 +675,8 @@ class BuilderView(QWidget):
         )
         if not d:
             return
-        params["out_dir"] = d
-        self._write_params_text(params)
+        data["out_dir"] = d
+        self._write_params_mapping(data)
         self._mark_dirty()
 
     def _pick_save_excel_template(self) -> None:
@@ -671,7 +684,8 @@ class BuilderView(QWidget):
         if not step or step.type not in ("save_excel", "group_template_export"):
             return
         try:
-            params = self._read_params_text()
+            params = self._read_params_dict()
+            data = self._read_params_mapping()
         except Exception as e:  # noqa: BLE001
             QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
             return
@@ -684,8 +698,8 @@ class BuilderView(QWidget):
         )
         if not fp:
             return
-        params["template_path"] = fp
-        self._write_params_text(params)
+        data["template_path"] = fp
+        self._write_params_mapping(data)
         self._mark_dirty()
 
     @staticmethod
@@ -700,7 +714,8 @@ class BuilderView(QWidget):
         if not step or step.type != "globals_settings":
             return
         try:
-            params = self._read_params_text()
+            params = self._read_params_dict()
+            data = self._read_params_mapping()
         except Exception as e:  # noqa: BLE001
             QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
             return
@@ -722,10 +737,13 @@ class BuilderView(QWidget):
         d = QFileDialog.getExistingDirectory(self, title, initial)
         if not d:
             return
-        values[var] = d
-        params["values"] = values
-        params["directory_initial"] = d
-        self._write_params_text(params)
+        vals = data.get("values")
+        if not isinstance(vals, CommentedMap):
+            vals = CommentedMap(vals or {})
+            data["values"] = vals
+        vals[var] = d
+        data["directory_initial"] = d
+        self._write_params_mapping(data)
         self._mark_dirty()
 
     def _pick_globals_file_value(self) -> None:
@@ -733,7 +751,8 @@ class BuilderView(QWidget):
         if not step or step.type != "globals_settings":
             return
         try:
-            params = self._read_params_text()
+            params = self._read_params_dict()
+            data = self._read_params_mapping()
         except Exception as e:  # noqa: BLE001
             QMessageBox.critical(self, "ExcelForge", f"Ошибка params YAML:\n{e}")
             return
@@ -757,9 +776,12 @@ class BuilderView(QWidget):
         )
         if not fp:
             return
-        values[var] = fp
-        params["values"] = values
-        self._write_params_text(params)
+        vals = data.get("values")
+        if not isinstance(vals, CommentedMap):
+            vals = CommentedMap(vals or {})
+            data["values"] = vals
+        vals[var] = fp
+        self._write_params_mapping(data)
         self._mark_dirty()
 
     @staticmethod
@@ -783,6 +805,7 @@ class BuilderView(QWidget):
         except KeyError:
             return
         step.params = default
+        step.params_yaml = ""
         step.comment = ""
         self._mark_dirty()
         self._step_editor_dirty = False
@@ -848,7 +871,13 @@ class BuilderView(QWidget):
         new_id = self._next_step_id(s.type)
         self.pipeline.steps.insert(
             row + 1,
-            Step(id=new_id, type=s.type, params=dict(s.params), comment=str(s.comment or "")),
+            Step(
+                id=new_id,
+                type=s.type,
+                params=dict(s.params),
+                comment=str(s.comment or ""),
+                params_yaml=str(s.params_yaml or ""),
+            ),
         )
         self._mark_dirty()
         self._refresh_steps_list()

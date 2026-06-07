@@ -1,5 +1,6 @@
 pandas
 openpyxl
 PyYAML
+ruamel.yaml>=0.17
 markdown2
 PySide6>=6.6,<6.9

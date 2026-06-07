@@ -1456,3 +1456,105 @@ params:
   inc_start: 1
   inc_position: prefix
 ```
+
+---
+
+## run_command
+
+**Назначение:** запуск системных команд и скриптов (Windows/Linux). Поддерживаются прямой вызов команды и запуск файла скрипта с автоматическим выбором интерпретатора. Пути и аргументы поддерживают глобальные переменные `@var` (подставляются до запуска шага).
+
+Поле **`operation`**: `command` \| `script`.
+
+### Параметры
+
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| `operation` | строка | `command` — прямой запуск; `script` — запуск файла скрипта. |
+| `command` | строка / список | Команда для `operation: command`. Строка — для `shell: on`; список — argv без оболочки, напр. `["python", "-c", "print(1)"]`. |
+| `script_path` | строка | Путь к скрипту для `operation: script`. |
+| `script_args` | список / строка | Аргументы скрипта. |
+| `interpreter` | строка | Явный интерпретатор (переопределяет автоопределение по расширению). |
+| `shell` | `on` / `off` | Запуск через оболочку ОС (`cmd.exe` / `sh`). Только со строковой `command`. По умолчанию `off`. |
+| `cwd` | строка | Рабочий каталог. |
+| `env` | объект | Дополнительные переменные окружения (поверх текущих). |
+| `timeout` | число | Лимит времени в секундах. |
+| `capture_output` | `on` / `off` | Перехватывать stdout/stderr (по умолчанию `on`). |
+| `fail_on_error` | `on` / `off` | Прервать пайплайн при ненулевом коде возврата (по умолчанию `on`). |
+| `stdout_var` | строка | Записать stdout в `ctx.variables`. |
+| `stderr_var` | строка | Записать stderr в `ctx.variables`. |
+| `exit_code_var` | строка | Записать код возврата (int). |
+| `result_var` | строка | Алиас для stdout (как в `file_ops`). |
+
+### Автоопределение интерпретатора (`operation: script`)
+
+| Расширение | Windows | Linux |
+|------------|---------|-------|
+| `.py` | `python` (текущий интерпретатор) | то же |
+| `.sh` | `bash` (Git Bash/WSL), иначе задайте `interpreter` | `/bin/sh` |
+| `.bat`, `.cmd` | `cmd /c` | ошибка |
+| `.ps1` | `powershell -File` | ошибка |
+| другое | задайте `interpreter` явно | задайте `interpreter` или исполняемый файл |
+
+### Примеры
+
+Argv-список (рекомендуется, безопаснее):
+
+```yaml
+type: run_command
+params:
+  operation: command
+  command: ["python", "-c", "print('hello')"]
+  stdout_var: cmd_out
+  exit_code_var: cmd_code
+```
+
+Shell-строка (пайпы, `&&`, перенаправление):
+
+```yaml
+type: run_command
+params:
+  operation: command
+  command: "dir && echo done"
+  shell: on
+  cwd: "@work_dir"
+  stdout_var: cmd_out
+```
+
+Python-скрипт:
+
+```yaml
+type: run_command
+params:
+  operation: script
+  script_path: "@scripts/process.py"
+  script_args: ["--input", "@in_dir", "--output", "@out_dir"]
+  cwd: "@project_root"
+  fail_on_error: on
+  stdout_var: script_log
+  exit_code_var: script_code
+```
+
+Bash-скрипт (Linux) / с явным интерпретатором (Windows):
+
+```yaml
+type: run_command
+params:
+  operation: script
+  script_path: ./tools/backup.sh
+  script_args: ["@archive_dir"]
+  interpreter: bash
+```
+
+Переменные окружения и таймаут:
+
+```yaml
+type: run_command
+params:
+  operation: command
+  command: ["my_tool", "--run"]
+  env:
+    MY_CONFIG: "@config_path"
+    LANG: ru_RU.UTF-8
+  timeout: 120
+  stderr_var: tool_err
+```

@@ -1,0 +1,59 @@
+pipeline_version: 1
+name: Вывод большого описания паплайна
+description: '🌟 ##Почему выбирают нас?
+
+  ✔️ Качество и надежность: Мы работаем только с проверенными производителями, чтобы
+  гарантировать долгий срок службы и стабильную работу.
+
+  ✔️ Широкий ассортимент: От процессоров и материнских плат до оперативной памяти
+  и жестких дисков — у нас есть все, что нужно для сборки вашего идеального сервера.
+
+  ✔️ Конкурентные цены: Мы предлагаем лучшие цены на рынке, чтобы вы могли оптимизировать
+  свои затраты без ущерба для качества.
+
+  ✔️ Профессиональная поддержка: Мы всегда готовы помочь вам выбрать подходящие комплектующие
+  и ответить на все ваши вопросы.
+
+  Мы не только поставляем оборудование, но и консультируем, тестируем и гарантируем
+  бесперебойную работу ваших серверов.
+
+  Не упустите возможность приобрести качественные серверные комплектующие по выгодной
+  цене!'
+steps:
+- id: load_excel_1
+  type: load_excel
+  params:
+    input_mode: file
+    directory: ''
+    pattern: '*.xlsx'
+    recursive: false
+    file_path: C:/Users/kovtu.CODER/Excel_Mag/data/Результат.xlsx
+    sheet: Лист1
+    header_mode: first_row
+    start_row: 1
+    usecols: ''
+    dataframe: df_main
+    dtype: str
+- id: groupby_aggregate_1
+  type: groupby_aggregate
+  params:
+    source_df: df_main
+    target_df: df_grouped
+    group_keys:
+    - Тип оборудования
+    aggregations:
+      Остаточная стоимость: count
+- id: save_excel_1
+  type: save_excel
+  params:
+    source_df: df_main
+    out_dir: C:/Users/kovtu.CODER/ExcelForge/testdata
+    filename: result.xlsx
+    columns: []
+    template_path: ''
+    template_column_map: {}
+    sheet_name: Sheet1
+    start_row: 1
+    start_col: 1
+    split_by_column: Тип оборудования
+    split_filename_mask: out_{group}.xlsx

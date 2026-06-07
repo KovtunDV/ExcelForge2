@@ -1,0 +1,25 @@
+pipeline_version: 1
+name: Проверка запуска команд системы
+description: Проверка запуска команд системы
+steps:
+- id: run_command_1
+  type: run_command
+  params:
+    operation: command
+    command:
+    - python
+    - -c
+    - print('hello')
+    script_path: ''
+    script_args: []
+    interpreter: ''
+    shell: false
+    cwd: ''
+    env: {}
+    timeout: null
+    capture_output: true
+    fail_on_error: true
+    stdout_var: cmd_out
+    stderr_var: ''
+    exit_code_var: cmd_code
+    result_var: ''

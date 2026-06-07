@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="slides-format" content="viewport">
+  <title>ExcelForge — назначение, польза и сценарии применения</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --color-bg: #0b1220;
+      --color-bg-deep: #050816;
+      --color-surface: #142033;
+      --color-text: #eef4ff;
+      --color-text-secondary: #c7d3e6;
+      --color-text-muted: #8aa0bf;
+      --color-accent-1: #60a5fa;
+      --color-accent-2: #22d3ee;
+      --color-accent-3: #a78bfa;
+      --color-glass-bg: rgba(255,255,255,0.07);
+      --color-glass-border: rgba(255,255,255,0.10);
+      --color-vignette: rgba(0,0,0,0.42);
+      --font-display: 'Instrument Serif', serif;
+      --font-body: 'Inter', sans-serif;
+    }
+  </style>
+  <style>
+    :root { --color-bg: #0b1220; --color-text: #eef4ff; --glow-color-rgb: 96,165,250; }
+    *,*::before,*::after{box-sizing:border-box}
+    html,body{background:var(--color-bg);margin:0}
+    body{font-family:var(--font-body);color:var(--color-text);overflow:hidden;height:100vh;width:100vw}
+    .deck{width:100vw;height:100vh;position:relative}
+    .slide{position:absolute;top:0;left:0;width:100%;height:100%;background:var(--color-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;transform:scale(.95);transition:opacity .7s ease,transform .7s ease;pointer-events:none;overflow:hidden}
+    .slide.active{opacity:1;transform:scale(1);pointer-events:all}
+    .slide>.content{position:relative;z-index:2;width:100%;max-width:1180px;padding:clamp(1.5rem,4vw,3.2rem)}
+    .nav-controls{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:16px;z-index:100;background:var(--color-glass-bg);backdrop-filter:blur(10px);padding:10px 24px;border-radius:40px;border:1px solid var(--color-glass-border)}
+    .nav-btn{width:40px;height:40px;border:none;background:var(--color-glass-bg);color:var(--color-accent-1);border-radius:50%;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
+    .slide-dots{display:flex;gap:8px}.slide-dots .dot{width:10px;height:10px;border-radius:50%;background:var(--color-glass-border);cursor:pointer;transition:background .3s,transform .3s}.slide-dots .dot.active{background:var(--color-accent-1);transform:scale(1.3)}
+    .slide-counter{font-size:.8rem;color:var(--color-text-muted);min-width:46px;text-align:center}
+    .reveal{opacity:0;transform:translateY(20px)}
+    .gradient-mesh{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+    .blob{position:absolute;border-radius:50%;filter:blur(80px);animation:float-slow 12s ease-in-out infinite}
+    .blob:nth-child(2){animation:float-drift 16s ease-in-out infinite}.blob:nth-child(3){animation:float-slow 18s ease-in-out infinite reverse}
+    @keyframes float-slow{0%{transform:translate(0,0) scale(1)}25%{transform:translate(60px,-50px) scale(1.12)}50%{transform:translate(-40px,40px) scale(.9)}75%{transform:translate(50px,20px) scale(1.08)}100%{transform:translate(0,0) scale(1)}}
+    @keyframes float-drift{0%{transform:translate(0,0) scale(1) rotate(0deg)}33%{transform:translate(-50px,-60px) scale(1.15) rotate(3deg)}66%{transform:translate(40px,30px) scale(.88) rotate(-2deg)}100%{transform:translate(0,0) scale(1) rotate(0deg)}}
+    @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-15px)}}
+    .slide::before{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");background-repeat:repeat;background-size:256px 256px;opacity:.03;mix-blend-mode:overlay}
+    .slide::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse at center,transparent 50%,var(--color-vignette) 100%)}
+    .bar-chart{display:flex;align-items:flex-end;gap:.7rem;height:180px}.bar-col{display:flex;flex-direction:column;align-items:center;gap:.4rem;flex:1}.bar{border-radius:10px 10px 0 0;width:100%}
+    .bar-track{height:14px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}.bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--color-accent-1),var(--color-accent-2))}
+    .section-kicker{letter-spacing:.18em;text-transform:uppercase;color:var(--color-text-muted);font-size:.8rem}
+    .deco-shape{position:absolute;border-radius:999px;filter:blur(1px);opacity:.12;z-index:1}
+    .shot{border-radius:18px;border:1px solid rgba(255,255,255,.1);box-shadow:0 18px 60px rgba(0,0,0,.28);background:#dfe6ef}
+    @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms !important;transition-duration:.2s !important}}
+  </style>
+</head>
+<body>
+<div class="mouse-spotlight" style="position:fixed;inset:0;z-index:99;pointer-events:none;"></div>
+<div class="deck">
+  <div class="slide slide-1 active" data-slide="1">
+    <div class="gradient-mesh">
+      <div class="blob" style="width:520px;height:520px;top:-120px;right:-100px;background:var(--color-accent-1);opacity:.16"></div>
+      <div class="blob" style="width:320px;height:320px;bottom:-90px;left:-60px;background:var(--color-accent-2);opacity:.12"></div>
+      <div class="blob" style="width:240px;height:240px;top:42%;left:16%;background:var(--color-accent-3);opacity:.11"></div>
+    </div>
+    <canvas class="particle-canvas" style="position:absolute;inset:0;z-index:1"></canvas>
+    <div class="content text-center">
+      <div class="text-[110px] mb-5 animate-[float_3s_ease-in-out_infinite] reveal">📊</div>
+      <h1 class="font-display text-[clamp(2.6rem,6vw,5.2rem)] font-black bg-linear-to-br from-accent-1 via-accent-2 to-accent-3 bg-clip-text text-transparent tracking-tight mb-4 reveal">ExcelForge</h1>
+      <p class="text-[clamp(1rem,1.7vw,1.35rem)] font-light text-text-muted tracking-[6px] uppercase reveal">программа для ETL-обработки Excel через YAML, pandas и GUI</p>
+    </div>
+  </div>
+
+  <div class="slide" data-slide="2">
+    <div class="gradient-mesh"><div class="blob" style="width:340px;height:340px;top:-80px;right:-80px;background:var(--color-accent-1);opacity:.08"></div><div class="blob" style="width:230px;height:230px;bottom:-60px;left:-40px;background:var(--color-accent-2);opacity:.06"></div></div>
+    <div class="deco-shape" data-speed="0.03" style="width:180px;height:180px;top:14%;left:6%;background:linear-gradient(135deg,var(--color-accent-1),transparent)"></div>
+    <div class="content">
+      <p class="section-kicker reveal">Назначение</p>
+      <h2 class="font-display text-[clamp(2rem,4.5vw,3.3rem)] font-bold mb-8 reveal">Что делает программа</h2>
+      <div class="grid grid-cols-2 gap-6 mt-4">
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-8 reveal hover:-translate-y-1 hover:shadow-xl transition">
+          <div class="text-4xl mb-4">🧩</div>
+          <h3 class="text-2xl font-semibold mb-3">Собирает pipeline из шагов</h3>
+          <p class="text-text-secondary text-lg leading-relaxed">ExcelForge описывает загрузку, фильтрацию, объединение, преобразование и сохранение данных в YAML-пайплайне, который затем исполняется через Runner или настраивается в Builder.</p>
+        </div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-8 reveal hover:-translate-y-1 hover:shadow-xl transition">
+          <div class="text-4xl mb-4">📁</div>
+          <h3 class="text-2xl font-semibold mb-3">Работает с Excel как с источником и результатом</h3>
+          <p class="text-text-secondary text-lg leading-relaxed">Программа загружает листы Excel в DataFrame pandas, выполняет обработку без VBA и может выгружать результат обратно в Excel в разных режимах записи.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide" data-slide="3">
+    <div class="gradient-mesh"><div class="blob" style="width:300px;height:300px;top:-70px;left:-70px;background:var(--color-accent-3);opacity:.08"></div><div class="blob" style="width:260px;height:260px;bottom:-70px;right:-60px;background:var(--color-accent-1);opacity:.07"></div></div>
+    <div class="content">
+      <p class="section-kicker reveal">Практическая польза</p>
+      <h2 class="font-display text-[clamp(2rem,4.4vw,3rem)] font-bold mb-8 reveal">Почему это ценно в работе</h2>
+      <div class="grid grid-cols-3 gap-6">
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-7 reveal hover:-translate-y-1 hover:shadow-xl transition"><div class="text-3xl mb-3">⚡</div><h3 class="text-xl font-semibold mb-2">Снижение ручного труда</h3><p class="text-text-secondary">Повторяющиеся операции над Excel выносятся в переиспользуемый pipeline вместо ручных действий в книге.</p></div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-7 reveal hover:-translate-y-1 hover:shadow-xl transition"><div class="text-3xl mb-3">🔁</div><h3 class="text-xl font-semibold mb-2">Повторяемость результата</h3><p class="text-text-secondary">Один и тот же YAML можно запускать снова и получать одинаковую логику обработки с контролируемыми параметрами.</p></div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-7 reveal hover:-translate-y-1 hover:shadow-xl transition"><div class="text-3xl mb-3">👥</div><h3 class="text-xl font-semibold mb-2">Порог входа ниже, чем у кода</h3><p class="text-text-secondary">Пользователь управляет шагами через GUI Builder и Runner, а не пишет полноценный Python-скрипт с нуля.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide" data-slide="4">
+    <div class="gradient-mesh"><div class="blob" style="width:360px;height:360px;top:-100px;right:-80px;background:var(--color-accent-2);opacity:.08"></div><div class="blob" style="width:240px;height:240px;bottom:-50px;left:-50px;background:var(--color-accent-3);opacity:.07"></div></div>
+    <canvas class="particle-canvas-ambient" style="position:absolute;inset:0;z-index:1"></canvas>
+    <div class="content">
+      <p class="section-kicker reveal">Сценарии</p>
+      <h2 class="font-display text-[clamp(2rem,4.4vw,3rem)] font-bold mb-8 reveal">Где ExcelForge особенно полезен</h2>
+      <div class="grid grid-cols-2 gap-6">
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-8 reveal"><h3 class="text-xl font-semibold mb-3">Сверка и обогащение таблиц</h3><p class="text-text-secondary text-lg">Загрузка нескольких Excel-файлов, merge или map_lookup по ключам, перенос недостающих значений и формирование итоговой таблицы для бизнеса.</p></div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-8 reveal"><h3 class="text-xl font-semibold mb-3">Подготовка отчетов</h3><p class="text-text-secondary text-lg">Фильтрация строк, переименование столбцов, агрегация, сортировка и выгрузка результатов в шаблонный или новый Excel-файл.</p></div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-8 reveal"><h3 class="text-xl font-semibold mb-3">Массовая обработка типовых выгрузок</h3><p class="text-text-secondary text-lg">Когда структура входных файлов повторяется, pipeline превращает разрозненные Excel-операции в стандартную процедуру запуска.</p></div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-8 reveal"><h3 class="text-xl font-semibold mb-3">Работа с несколькими DataFrame</h3><p class="text-text-secondary text-lg">Builder позволяет держать и комбинировать несколько DF, включая глобальный контекст для повторного использования между запусками.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide" data-slide="5">
+    <div class="gradient-mesh"><div class="blob" style="width:320px;height:320px;top:-70px;right:-70px;background:var(--color-accent-1);opacity:.07"></div><div class="blob" style="width:260px;height:260px;bottom:-60px;left:-60px;background:var(--color-accent-2);opacity:.06"></div></div>
+    <div class="content">
+      <p class="section-kicker reveal">Как устроено</p>
+      <h2 class="font-display text-[clamp(2rem,4.5vw,3rem)] font-bold mb-8 reveal">Основной поток работы</h2>
+      <div class="grid grid-cols-4 gap-5">
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-6 reveal"><div class="text-3xl mb-3">1️⃣</div><h3 class="font-semibold text-lg mb-2">Загрузка</h3><p class="text-text-secondary">load_excel переносит листы Excel в DataFrame.</p></div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-6 reveal"><div class="text-3xl mb-3">2️⃣</div><h3 class="font-semibold text-lg mb-2">Преобразование</h3><p class="text-text-secondary">filtration, query, df_assign, merge, groupby и другие шаги изменяют данные.</p></div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-6 reveal"><div class="text-3xl mb-3">3️⃣</div><h3 class="font-semibold text-lg mb-2">Проверка</h3><p class="text-text-secondary">В Builder можно тестово исполнять шаги и просматривать DataFrame.</p></div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-6 reveal"><div class="text-3xl mb-3">4️⃣</div><h3 class="font-semibold text-lg mb-2">Выгрузка</h3><p class="text-text-secondary">save_excel сохраняет результат в один файл, маскированный набор файлов или листы.</p></div>
+      </div>
+      <div class="mt-8 bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-7 reveal">
+        <p class="text-text-secondary text-lg">Архитектурно продукт объединяет GUI на PySide6/Qt, YAML-описание пайплайнов, pandas/DataFrame как ядро обработки и Excel как основной формат входа и выхода.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide" data-slide="6">
+    <div class="gradient-mesh"><div class="blob" style="width:320px;height:320px;top:-80px;left:-60px;background:var(--color-accent-3);opacity:.08"></div><div class="blob" style="width:260px;height:260px;bottom:-70px;right:-40px;background:var(--color-accent-1);opacity:.07"></div></div>
+    <div class="content">
+      <p class="section-kicker reveal">Функции</p>
+      <h2 class="font-display text-[clamp(2rem,4.4vw,3rem)] font-bold mb-8 reveal">Операции, которые покрывает программа</h2>
+      <div class="grid grid-cols-3 gap-5">
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-6 reveal"><h3 class="font-semibold text-lg mb-2">Импорт и экспорт</h3><p class="text-text-secondary">Загрузка из Excel, запись в Excel, поддержка шаблонов, масок листов и режимов перезаписи.</p></div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-6 reveal"><h3 class="font-semibold text-lg mb-2">Трансформации DF</h3><p class="text-text-secondary">Фильтрация, query, concat, drop rows, transpose, переименование и приведение типов.</p></div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-6 reveal"><h3 class="font-semibold text-lg mb-2">Сопоставление и merge</h3><p class="text-text-secondary">Объединение таблиц, lookup по ключам, перенос значений и заполнение пустых ячеек.</p></div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-6 reveal"><h3 class="font-semibold text-lg mb-2">Агрегации</h3><p class="text-text-secondary">groupby, суммирование, сводные операции и подготовка компактных отчетных наборов.</p></div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-6 reveal"><h3 class="font-semibold text-lg mb-2">Параметры через GUI</h3><p class="text-text-secondary">fileOpenDialog, глобальные настройки и редактирование параметров шагов без ручного редактирования YAML.</p></div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-6 reveal"><h3 class="font-semibold text-lg mb-2">Диагностика</h3><p class="text-text-secondary">Просмотр предпросмотра DataFrame, тестовый запуск шагов и лог выполнения для контроля результата.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide" data-slide="7">
+    <div class="gradient-mesh"><div class="blob" style="width:340px;height:340px;top:-90px;right:-90px;background:var(--color-accent-2);opacity:.08"></div><div class="blob" style="width:240px;height:240px;bottom:-40px;left:-50px;background:var(--color-accent-1);opacity:.06"></div></div>
+    <div class="content">
+      <p class="section-kicker reveal">Интерфейс</p>
+      <h2 class="font-display text-[clamp(2rem,4.4vw,3rem)] font-bold mb-8 reveal">Что показывают экраны программы</h2>
+      <div class="grid grid-cols-2 gap-6 items-start">
+        <div class="reveal"><img class="shot w-full" src="2026-05-24_17-30-44.jpg" alt="Builder с YAML-шагами и параметрами"></div>
+        <div class="space-y-4 reveal">
+          <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-6"><h3 class="font-semibold text-xl mb-2">Builder</h3><p class="text-text-secondary">Конструктор позволяет видеть шаги пайплайна, редактировать параметры, запускать тестовый прогон и открывать документацию по шагу.</p></div>
+          <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-6"><h3 class="font-semibold text-xl mb-2">Просмотр данных</h3><p class="text-text-secondary">Окно DataFrame показывает доступные DF, колонки, фильтр и фрагмент таблицы, что ускоряет проверку качества данных перед выгрузкой.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide" data-slide="8">
+    <div class="gradient-mesh"><div class="blob" style="width:350px;height:350px;top:-80px;left:-80px;background:var(--color-accent-1);opacity:.08"></div><div class="blob" style="width:260px;height:260px;bottom:-60px;right:-40px;background:var(--color-accent-3);opacity:.06"></div></div>
+    <div class="content">
+      <p class="section-kicker reveal">Кейс</p>
+      <h2 class="font-display text-[clamp(2rem,4.4vw,3rem)] font-bold mb-8 reveal">Пример практического сценария</h2>
+      <div class="grid grid-cols-2 gap-8">
+        <div class="reveal">
+          <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-7">
+            <h3 class="text-2xl font-semibold mb-4">Сверка ВПР-таблиц без ручного Excel</h3>
+            <ul class="space-y-3 text-text-secondary text-lg">
+              <li>• Загружаются две Excel-таблицы как table1 и table2.</li>
+              <li>• Шаг df_assign с map_lookup ищет совпадения по ключу.</li>
+              <li>• В целевой DF добавляются столбцы с остаточной стоимостью и новым полем.</li>
+              <li>• Результат сохраняется в итоговый XLSX и сразу проверяется через просмотр DF.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="reveal"><img class="shot w-full" src="2026-05-24_17-31-24.jpg" alt="Просмотр DataFrame после выполнения сценария ВПР"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide" data-slide="9">
+    <div class="gradient-mesh"><div class="blob" style="width:310px;height:310px;top:-80px;right:-70px;background:var(--color-accent-2);opacity:.08"></div><div class="blob" style="width:280px;height:280px;bottom:-60px;left:-50px;background:var(--color-accent-3);opacity:.06"></div></div>
+    <canvas class="particle-canvas" style="position:absolute;inset:0;z-index:1"></canvas>
+    <div class="content">
+      <p class="section-kicker reveal">Целевая аудитория</p>
+      <h2 class="font-display text-[clamp(2rem,4.4vw,3rem)] font-bold mb-8 reveal">Кому подходит ExcelForge</h2>
+      <div class="grid grid-cols-3 gap-6">
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-7 reveal"><div class="text-3xl mb-3">🏢</div><h3 class="text-xl font-semibold mb-2">Бизнес-аналитикам</h3><p class="text-text-secondary">Для регулярной подготовки отчетов, очистки выгрузок и стыковки данных из разных Excel-источников.</p></div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-7 reveal"><div class="text-3xl mb-3">🛠️</div><h3 class="text-xl font-semibold mb-2">ИТ и внутренним разработчикам</h3><p class="text-text-secondary">Для стандартизации ETL-процедур без написания отдельного настольного приложения под каждый кейс.</p></div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-7 reveal"><div class="text-3xl mb-3">📚</div><h3 class="text-xl font-semibold mb-2">Пользователям Excel с продвинутыми задачами</h3><p class="text-text-secondary">Когда возможностей формул и ручных операций уже не хватает, но нужен понятный GUI и сценарный подход.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide" data-slide="10">
+    <div class="gradient-mesh"><div class="blob" style="width:360px;height:360px;top:-90px;right:-70px;background:var(--color-accent-1);opacity:.09"></div><div class="blob" style="width:270px;height:270px;bottom:-70px;left:-40px;background:var(--color-accent-2);opacity:.07"></div></div>
+    <div class="content">
+      <p class="section-kicker reveal">Преимущества</p>
+      <h2 class="font-display text-[clamp(2rem,4.4vw,3rem)] font-bold mb-8 reveal">Ключевые отличия от ручной обработки</h2>
+      <div class="grid grid-cols-2 gap-6">
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-8 reveal">
+          <h3 class="text-xl font-semibold mb-4">Ручная работа в Excel</h3>
+          <div class="space-y-4">
+            <div><div class="flex justify-between text-sm mb-1"><span>Повторяемость</span><span>Низкая</span></div><div class="bar-track"><div class="bar-fill" data-width="28"></div></div></div>
+            <div><div class="flex justify-between text-sm mb-1"><span>Скорость на типовой задаче</span><span>Средняя</span></div><div class="bar-track"><div class="bar-fill" data-width="42"></div></div></div>
+            <div><div class="flex justify-between text-sm mb-1"><span>Прозрачность шагов</span><span>Ниже</span></div><div class="bar-track"><div class="bar-fill" data-width="35"></div></div></div>
+          </div>
+        </div>
+        <div class="bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-8 reveal">
+          <h3 class="text-xl font-semibold mb-4">ExcelForge</h3>
+          <div class="space-y-4">
+            <div><div class="flex justify-between text-sm mb-1"><span>Повторяемость</span><span>Высокая</span></div><div class="bar-track"><div class="bar-fill" data-width="90"></div></div></div>
+            <div><div class="flex justify-between text-sm mb-1"><span>Скорость на типовой задаче</span><span>Высокая</span></div><div class="bar-track"><div class="bar-fill" data-width="82"></div></div></div>
+            <div><div class="flex justify-between text-sm mb-1"><span>Прозрачность шагов</span><span>Высокая</span></div><div class="bar-track"><div class="bar-fill" data-width="88"></div></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="mt-6 bg-glass-bg backdrop-blur-xl border border-glass-border rounded-2xl p-6 reveal"><p class="text-text-secondary text-lg">Смысл продукта не в том, чтобы заменить Excel, а в том, чтобы сделать обработку Excel-данных управляемой, сценарной и воспроизводимой.</p></div>
+    </div>
+  </div>
+
+  <div class="slide" data-slide="11">
+    <div class="gradient-mesh">
+      <div class="blob" style="width:520px;height:520px;top:-110px;right:-110px;background:var(--color-accent-1);opacity:.15"></div>
+      <div class="blob" style="width:320px;height:320px;bottom:-80px;left:-60px;background:var(--color-accent-2);opacity:.12"></div>
+      <div class="blob" style="width:220px;height:220px;top:45%;left:14%;background:var(--color-accent-3);opacity:.10"></div>
+    </div>
+    <canvas class="particle-canvas" style="position:absolute;inset:0;z-index:1"></canvas>
+    <div class="content text-center">
+      <div class="text-[96px] mb-4 animate-[float_3s_ease-in-out_infinite] reveal">🚀</div>
+      <h2 class="font-display text-[clamp(2.4rem,5vw,4.6rem)] font-bold bg-linear-to-br from-accent-1 via-accent-2 to-accent-3 bg-clip-text text-transparent mb-4 reveal">ExcelForge помогает превратить Excel-операции в управляемый ETL-процесс</h2>
+      <p class="text-[clamp(1rem,1.6vw,1.3rem)] text-text-secondary tracking-[3px] uppercase reveal">yaml-сценарии · визуальный builder · повторяемый результат</p>
+    </div>
+  </div>
+</div>
+
+<div class="nav-controls" aria-label="Управление слайдами">
+  <button class="nav-btn" onclick="changeSlide(-1)" aria-label="Предыдущий слайд">&#8249;</button>
+  <div class="slide-dots" id="dots"></div>
+  <button class="nav-btn" onclick="changeSlide(1)" aria-label="Следующий слайд">&#8250;</button>
+  <span class="slide-counter" id="counter">1 / 11</span>
+</div>
+
+<script>
+let current=1;const total=document.querySelectorAll('.slide').length;const dotsContainer=document.getElementById('dots');const counter=document.getElementById('counter');for(let i=1;i<=total;i++){const dot=document.createElement('div');dot.className='dot'+(i===1?' active':'');dot.onclick=()=>goToSlide(i);dotsContainer.appendChild(dot);}function goToSlide(n){const prev=document.querySelector('.slide.active');const next=document.querySelector(`.slide[data-slide="${n}"]`);if(prev)prev.classList.remove('active');if(next){next.classList.add('active');animateSlide(next);}current=n;updateNav();}function changeSlide(dir){let next=current+dir;if(next<1)next=total;if(next>total)next=1;goToSlide(next);}function updateNav(){document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i+1===current));counter.textContent=current+' / '+total;}document.addEventListener('keydown',(e)=>{if(e.key==='ArrowRight'||e.key===' '){e.preventDefault();changeSlide(1);}if(e.key==='ArrowLeft'){e.preventDefault();changeSlide(-1);}});let touchStartX=0;document.addEventListener('touchstart',(e)=>{touchStartX=e.touches[0].clientX;});document.addEventListener('touchend',(e)=>{const diff=touchStartX-e.changedTouches[0].clientX;if(Math.abs(diff)>50)changeSlide(diff>0?1:-1);});
+function animateSlide(slide){slide.querySelectorAll('.reveal').forEach((el,i)=>{el.style.transition='none';el.style.opacity='0';el.style.transform='translateY(20px)';el.offsetHeight;const delay=i*0.08;el.style.transition=`opacity .35s ease ${delay}s, transform .35s ease ${delay}s`;el.style.opacity='1';el.style.transform='translateY(0px)';});animateSlideEffects(slide);} 
+function animateSlideEffects(slide){slide.querySelectorAll('.bar-fill:not(.fill-init)').forEach((bar,i)=>{bar.classList.add('fill-init');bar.style.width='0%';bar.style.transition=`width .6s ease ${i*0.08}s`;bar.offsetHeight;bar.style.width=bar.dataset.width+'%';});}
+document.addEventListener('mousemove',(e)=>{const spotlight=document.querySelector('.mouse-spotlight');if(spotlight){const rgb=getComputedStyle(document.documentElement).getPropertyValue('--glow-color-rgb').trim()||'96,165,250';spotlight.style.background=`radial-gradient(600px circle at ${e.clientX}px ${e.clientY}px, rgba(${rgb}, 0.06), transparent 40%)`;}});
+(function(){let mouseX=window.innerWidth/2,mouseY=window.innerHeight/2;const cx=window.innerWidth/2,cy=window.innerHeight/2;document.addEventListener('mousemove',(e)=>{mouseX=e.clientX;mouseY=e.clientY;});(function tick(){const ox=(mouseX-cx)/cx,oy=(mouseY-cy)/cy;document.querySelectorAll('.deco-shape').forEach(shape=>{const speed=parseFloat(shape.dataset.speed)||0.03;shape.style.transform=`translate(${ox*speed*100}px, ${oy*speed*100}px)`;});requestAnimationFrame(tick);})();})();
+window.initParticles=function(canvas,options){if(!canvas)return;const ctx=canvas.getContext('2d');canvas.width=canvas.offsetWidth;canvas.height=canvas.offsetHeight;const interactive=options.interactive!==false;const count=options.count||(interactive?55:18);let mx=-1000,my=-1000;const rgb=getComputedStyle(document.documentElement).getPropertyValue('--glow-color-rgb').trim()||'96,165,250';const [r,g,b]=rgb.split(',').map(Number);const particles=Array.from({length:count},()=>({x:Math.random()*canvas.width,y:Math.random()*canvas.height,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,size:Math.random()*2.5+.8,alpha:Math.random()*.35+.1}));if(interactive){canvas.addEventListener('mousemove',(e)=>{const rect=canvas.getBoundingClientRect();mx=e.clientX-rect.left;my=e.clientY-rect.top;});canvas.addEventListener('mouseleave',()=>{mx=-1000;my=-1000;});}(function animate(){ctx.clearRect(0,0,canvas.width,canvas.height);particles.forEach(p=>{if(interactive){const dx=p.x-mx,dy=p.y-my,dist=Math.sqrt(dx*dx+dy*dy);if(dist<120){const force=(120-dist)/120*2;p.vx+=(dx/dist)*force*.1;p.vy+=(dy/dist)*force*.1;}}p.vx*=.98;p.vy*=.98;p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=canvas.width;if(p.x>canvas.width)p.x=0;if(p.y<0)p.y=canvas.height;if(p.y>canvas.height)p.y=0;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fillStyle=`rgba(${r},${g},${b},${p.alpha})`;ctx.fill();});requestAnimationFrame(animate);})();};
+document.querySelectorAll('.particle-canvas').forEach(c=>window.initParticles(c,{interactive:true,count:55}));document.querySelectorAll('.particle-canvas-ambient').forEach(c=>window.initParticles(c,{interactive:false,count:18}));try{animateSlide(document.querySelector('.slide.active'));}catch(e){}
+</script>
+</body>
+</html>

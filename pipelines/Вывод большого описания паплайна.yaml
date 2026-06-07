@@ -27,33 +27,12 @@ steps:
     directory: ''
     pattern: '*.xlsx'
     recursive: false
-    file_path: C:/Users/kovtu.CODER/Excel_Mag/data/Результат.xlsx
+    file_path: C:/Результат.xlsx
     sheet: Лист1
     header_mode: first_row
     start_row: 1
     usecols: ''
     dataframe: df_main
     dtype: str
-- id: groupby_aggregate_1
-  type: groupby_aggregate
-  params:
-    source_df: df_main
-    target_df: df_grouped
-    group_keys:
-    - Тип оборудования
-    aggregations:
-      Остаточная стоимость: count
-- id: save_excel_1
-  type: save_excel
-  params:
-    source_df: df_main
-    out_dir: C:/Users/kovtu.CODER/ExcelForge/testdata
-    filename: result.xlsx
-    columns: []
-    template_path: ''
-    template_column_map: {}
-    sheet_name: Sheet1
-    start_row: 1
-    start_col: 1
-    split_by_column: Тип оборудования
-    split_filename_mask: out_{group}.xlsx
+
+

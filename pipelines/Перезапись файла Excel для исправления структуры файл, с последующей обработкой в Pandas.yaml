@@ -1,0 +1,37 @@
+pipeline_version: 1
+name: Перезапись файла Excel для исправления структуры файл, с последующей обработкой
+  в Pandas
+description: Перезапись файла Excel для исправления структуры файл, с последующей
+  обработкой в Pandas
+steps:
+- id: globals_settings_1
+  type: globals_settings
+  params:
+    values:
+      file_path: ./pipelines/Demo_data/Данные для разделения.xlsx
+    system_values: []
+    dialogs: []
+    directory_initial: ''
+- id: run_command_1
+  type: run_command
+  params:
+    operation: command
+    command:
+    - cscript.exe
+    - ./tools/re_save_excel.vbs
+    - '@file_path'
+    script_path: ''
+    script_args: []
+    interpreter: ''
+    shell: false
+    cwd: ''
+    env: {}
+    timeout: null
+    capture_output: true
+    fail_on_error: true
+    stdout_var: out
+    stderr_var: ''
+    exit_code_var: res
+    result_var: ''
+  comment: '["cscript.exe", "re_save_excel.vbs", "C:\Apps\ExcelForge2\pipelines\Demo_data\Данные
+    для разделения.xlsx"'

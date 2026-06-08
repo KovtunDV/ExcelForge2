@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import fnmatch
 import glob
 import os
@@ -381,16 +382,43 @@ def _resolve_conflict_path(dest: str, on_conflict: OnConflict) -> tuple[str, str
     return dest, "overwrite"
 
 
+# SMB/CIFS и некоторые сетевые ФС не поддерживают chmod/utime/xattr после копирования.
+def _copystat_ignored_errnos() -> frozenset[int]:
+    err: set[int] = {errno.EPERM, errno.EACCES}
+    for name in ("EOPNOTSUPP", "ENOTSUP", "ENOSYS"):
+        val = getattr(errno, name, None)
+        if isinstance(val, int):
+            err.add(val)
+    err.add(95)  # Linux EOPNOTSUPP
+    return frozenset(err)
+
+
+def _best_effort_copystat(src: str, dest: str) -> None:
+    try:
+        shutil.copystat(src, dest)
+    except OSError as e:
+        if e.errno in _copystat_ignored_errnos():
+            return
+        raise
+
+
+def _copy_file_contents(src: str, dest: str, *, copy_metadata: bool = True) -> None:
+    """Копирование файла; метаданные — по возможности (без ошибки на SMB)."""
+    shutil.copyfile(src, dest)
+    if copy_metadata:
+        _best_effort_copystat(src, dest)
+
+
 def copy_file(src: str, dest: str, *, ensure_dirs: bool = True) -> None:
     if ensure_dirs:
         ensure_parent_dir(dest)
-    shutil.copy2(src, dest)
+    _copy_file_contents(src, dest)
 
 
 def move_file(src: str, dest: str, *, ensure_dirs: bool = True) -> None:
     if ensure_dirs:
         ensure_parent_dir(dest)
-    shutil.move(src, dest)
+    shutil.move(src, dest, copy_function=_copy_file_contents)
 
 
 def delete_path(path: str) -> None:
@@ -449,7 +477,7 @@ def copy_files_batch(
         if ensure_dirs:
             ensure_parent_dir(final_dest)
 
-        shutil.copy2(src, final_dest)
+        _copy_file_contents(src, final_dest)
         action_label = "renamed" if action == "rename" else "copied"
         if log:
             log(f"file_ops: {action_label} {src} -> {final_dest}")

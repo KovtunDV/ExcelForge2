@@ -1396,6 +1396,7 @@ params:
 | `inc_position` | строка | `prefix` \| `suffix` \| `false` — размещение `{inc}`. |
 | `preserve_structure` | bool | Сохранять относительную структуру каталогов при копировании и в ZIP. |
 | `on_conflict` | строка | При совпадении имён в одном каталоге: `overwrite` (по умолчанию), `skip`, `rename` (`_2`, `_3`…). |
+| `on_error` | строка | Реакция на ошибку выполнения: `error` (прервать шаг, по умолчанию) или `warn` (запись в протокол WARN и продолжить сценарий). Алиасы: `fail`/`stop`, `warning`/`continue`. |
 | `ensure_dirs` | `on` / `off` | Автоматически создавать каталоги назначения (по умолчанию `on`). |
 | `result_var` | строка | Имя переменной: записать путь последнего обработанного файла в `ctx.variables`. |
 
@@ -1501,6 +1502,17 @@ params:
   prefix: "processed_"
   inc_start: 1
   inc_position: prefix
+```
+
+Удаление с продолжением, если файл уже отсутствует:
+
+```yaml
+type: file_ops
+params:
+  operation: delete
+  source_mode: file
+  source_path: "@work_dir/temp.lock"
+  on_error: warn
 ```
 
 ---

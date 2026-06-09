@@ -21,7 +21,12 @@ from app.steps.util import (
 
 
 OnConflict = str  # overwrite | skip | rename
+OnError = str  # error | warn
 LogFn = Callable[[str], None]
+
+
+class FileOpRuntimeError(Exception):
+    """Ошибка выполнения файловой операции (не ошибка конфигурации шага)."""
 _ZIP_MIN_MTIME = 315532800.0  # 1980-01-01 UTC — минимум для zipfile
 _ARCHIVE_FILE_EXTENSIONS = {".zip", ".7z", ".tar", ".gz", ".bz2", ".rar"}
 
@@ -202,14 +207,14 @@ def resolve_source_files(
         exclude_dirs=exclude_dirs,
     )
     if not found:
-        raise ValueError(
+        raise FileOpRuntimeError(
             f"{step_label}: файлы не найдены в {directory!r} по маскам {patterns!r}"
         )
 
     if mode == "latest":
         latest = pick_latest_by_mtime(found)
         if latest is None:
-            raise ValueError(f"{step_label}: не удалось выбрать самый свежий файл")
+            raise FileOpRuntimeError(f"{step_label}: не удалось выбрать самый свежий файл")
         return [latest]
 
     return found
@@ -360,6 +365,15 @@ def parse_on_conflict(raw: Any) -> OnConflict:
     raise ValueError(f"on_conflict: неизвестное значение {raw!r}; используйте overwrite, skip, rename")
 
 
+def parse_on_error(raw: Any) -> OnError:
+    s = str(raw or "error").strip().lower()
+    if s in ("error", "fail", "stop", "raise"):
+        return "error"
+    if s in ("warn", "warning", "continue", "skip"):
+        return "warn"
+    raise ValueError(f"on_error: неизвестное значение {raw!r}; используйте error или warn")
+
+
 def _unique_dest_path(path: str) -> str:
     if not os.path.exists(path):
         return path
@@ -423,7 +437,7 @@ def move_file(src: str, dest: str, *, ensure_dirs: bool = True) -> None:
 
 def delete_path(path: str) -> None:
     if not os.path.isfile(path):
-        raise ValueError(f"Файл не найден: {path}")
+        raise FileOpRuntimeError(f"Файл не найден: {path}")
     os.remove(path)
 
 
@@ -435,8 +449,10 @@ def copy_files_batch(
     source_root: str = "",
     preserve_structure: bool = False,
     on_conflict: OnConflict = "overwrite",
+    on_error: OnError = "error",
     ensure_dirs: bool = True,
     log: LogFn | None = None,
+    warn: LogFn | None = None,
 ) -> list[CopyResult]:
     results: list[CopyResult] = []
     inc_start = int(p.get("inc_start", 1))
@@ -477,7 +493,20 @@ def copy_files_batch(
         if ensure_dirs:
             ensure_parent_dir(final_dest)
 
-        _copy_file_contents(src, final_dest)
+        try:
+            _copy_file_contents(src, final_dest)
+        except (FileOpRuntimeError, OSError, PermissionError) as e:
+            if on_error == "warn":
+                msg = f"file_ops: предупреждение, пропуск {src}: {e}"
+                if warn:
+                    warn(msg)
+                elif log:
+                    log(msg)
+                if use_inc:
+                    inc_val += inc_step
+                continue
+            raise
+
         action_label = "renamed" if action == "rename" else "copied"
         if log:
             log(f"file_ops: {action_label} {src} -> {final_dest}")

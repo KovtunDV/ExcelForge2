@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from typing import Any
 
 from app.pipeline.context import RunContext
 from app.pipeline.registry import REGISTRY, StepDefinition
 from app.pipeline.schema import Step
 from app.steps.file_ops_util import (
+    FileOpRuntimeError,
     copy_file,
     copy_files_batch,
     create_zip_archive,
@@ -16,6 +18,7 @@ from app.steps.file_ops_util import (
     extract_zip_archive,
     move_file,
     parse_on_conflict,
+    parse_on_error,
     resolve_dest_path,
     resolve_source_files,
 )
@@ -30,13 +33,45 @@ def _log(ctx: RunContext, msg: str) -> None:
     ctx.logger.info(msg)
 
 
+def _warn(ctx: RunContext, msg: str) -> None:
+    ctx.logger.warn(msg)
+
+
 def _set_result_var(ctx: RunContext, p: dict[str, Any], path: str) -> None:
     var = str(p.get("result_var", "") or "").strip()
     if var:
         ctx.variables[var] = path
 
 
+class _FileOpHandler:
+    """Реакция на ошибки выполнения: error (стоп) или warn (протокол + продолжить)."""
+
+    def __init__(self, ctx: RunContext, p: dict[str, Any]) -> None:
+        self.ctx = ctx
+        self.mode = parse_on_error(p.get("on_error"))
+
+    def run(self, label: str, action: Callable[[], None]) -> bool:
+        try:
+            action()
+            return True
+        except (FileOpRuntimeError, OSError, PermissionError) as e:
+            if self.mode == "warn":
+                _warn(self.ctx, f"file_ops {label}: {e}")
+                return False
+            raise
+
+    def run_optional(self, label: str, action: Callable[[], Any]) -> Any | None:
+        try:
+            return action()
+        except (FileOpRuntimeError, OSError, PermissionError) as e:
+            if self.mode == "warn":
+                _warn(self.ctx, f"file_ops {label}: {e}")
+                return None
+            raise
+
+
 def _run_copy_or_move(ctx: RunContext, p: dict[str, Any], *, move: bool) -> None:
+    handler = _FileOpHandler(ctx, p)
     ensure_dirs = _ensure_dirs_enabled(p)
     source_path = str(p.get("source_path", "") or "").strip()
     if not source_path:
@@ -57,42 +92,66 @@ def _run_copy_or_move(ctx: RunContext, p: dict[str, Any], *, move: bool) -> None
     if ensure_dirs:
         ensure_parent_dir(out)
 
-    if move:
-        move_file(source_path, out, ensure_dirs=False)
-        _log(ctx, f"file_ops: moved {source_path} -> {out}")
-    else:
-        copy_file(source_path, out, ensure_dirs=False)
-        _log(ctx, f"file_ops: copied {source_path} -> {out}")
+    op_label = "move" if move else "copy"
 
-    _set_result_var(ctx, p, out)
+    def _do() -> None:
+        if move:
+            move_file(source_path, out, ensure_dirs=False)
+        else:
+            copy_file(source_path, out, ensure_dirs=False)
+
+    if handler.run(f"{op_label} {source_path} -> {out}", _do):
+        _log(ctx, f"file_ops: {op_label}d {source_path} -> {out}")
+        _set_result_var(ctx, p, out)
 
 
 def _run_delete(ctx: RunContext, p: dict[str, Any]) -> None:
+    handler = _FileOpHandler(ctx, p)
     mode = str(p.get("source_mode", "file")).strip().lower()
     if mode == "file":
         path = str(p.get("source_path", "") or "").strip()
         if not path:
             raise ValueError("file_ops delete: задайте source_path")
-        delete_path(path)
-        _log(ctx, f"file_ops: deleted {path}")
-        _set_result_var(ctx, p, os.path.abspath(path))
+
+        def _do() -> None:
+            delete_path(path)
+
+        if handler.run(f"delete {path}", _do):
+            _log(ctx, f"file_ops: deleted {path}")
+            _set_result_var(ctx, p, os.path.abspath(path))
         return
 
-    sources = resolve_source_files(p, step_label="file_ops delete")
+    sources = handler.run_optional(
+        "resolve sources",
+        lambda: resolve_source_files(p, step_label="file_ops delete"),
+    )
+    if not sources:
+        return
+
     last = ""
     for sf in sources:
-        delete_path(sf.path)
-        _log(ctx, f"file_ops: deleted {sf.path}")
-        last = sf.path
+
+        def _do(path: str = sf.path) -> None:
+            delete_path(path)
+
+        if handler.run(f"delete {sf.path}", _do):
+            _log(ctx, f"file_ops: deleted {sf.path}")
+            last = sf.path
     if last:
         _set_result_var(ctx, p, last)
 
 
 def _run_copy_latest(ctx: RunContext, p: dict[str, Any]) -> None:
+    handler = _FileOpHandler(ctx, p)
     ensure_dirs = _ensure_dirs_enabled(p)
     copy_p = dict(p)
     copy_p["source_mode"] = "latest"
-    sources = resolve_source_files(copy_p, step_label="file_ops copy_latest")
+    sources = handler.run_optional(
+        "copy_latest resolve",
+        lambda: resolve_source_files(copy_p, step_label="file_ops copy_latest"),
+    )
+    if not sources:
+        return
     sf = sources[0]
 
     dest_dir = str(p.get("dest_dir", "") or "").strip()
@@ -112,16 +171,25 @@ def _run_copy_latest(ctx: RunContext, p: dict[str, Any]) -> None:
     if ensure_dirs:
         ensure_parent_dir(dest)
 
-    copy_file(sf.path, dest, ensure_dirs=False)
-    _log(ctx, f"file_ops: copy_latest {sf.path} -> {dest}")
-    _set_result_var(ctx, p, dest)
+    def _do() -> None:
+        copy_file(sf.path, dest, ensure_dirs=False)
+
+    if handler.run(f"copy_latest {sf.path} -> {dest}", _do):
+        _log(ctx, f"file_ops: copy_latest {sf.path} -> {dest}")
+        _set_result_var(ctx, p, dest)
 
 
 def _run_copy_by_mask(ctx: RunContext, p: dict[str, Any]) -> None:
+    handler = _FileOpHandler(ctx, p)
     ensure_dirs = _ensure_dirs_enabled(p)
     copy_p = dict(p)
     copy_p["source_mode"] = "mask"
-    sources = resolve_source_files(copy_p, step_label="file_ops copy_by_mask")
+    sources = handler.run_optional(
+        "copy_by_mask resolve",
+        lambda: resolve_source_files(copy_p, step_label="file_ops copy_by_mask"),
+    )
+    if not sources:
+        return
 
     dest_dir = str(p.get("dest_dir", "") or "").strip()
     if not dest_dir:
@@ -133,6 +201,7 @@ def _run_copy_by_mask(ctx: RunContext, p: dict[str, Any]) -> None:
     directory = str(p.get("directory", "") or "").strip()
     preserve = param_is_on(p.get("preserve_structure", False))
     on_conflict = parse_on_conflict(p.get("on_conflict"))
+    on_error = parse_on_error(p.get("on_error"))
 
     results = copy_files_batch(
         sources,
@@ -141,8 +210,10 @@ def _run_copy_by_mask(ctx: RunContext, p: dict[str, Any]) -> None:
         source_root=directory if preserve else "",
         preserve_structure=preserve,
         on_conflict=on_conflict,
+        on_error=on_error,
         ensure_dirs=ensure_dirs,
         log=lambda m: _log(ctx, m),
+        warn=lambda m: _warn(ctx, m),
     )
     if results:
         _set_result_var(ctx, p, results[-1].dest)
@@ -150,9 +221,15 @@ def _run_copy_by_mask(ctx: RunContext, p: dict[str, Any]) -> None:
 
 
 def _run_zip_create(ctx: RunContext, p: dict[str, Any]) -> None:
+    handler = _FileOpHandler(ctx, p)
     ensure_dirs = _ensure_dirs_enabled(p)
     source_mode = str(p.get("source_mode", "mask")).strip().lower()
-    sources = resolve_source_files(p, source_mode=source_mode, step_label="file_ops zip_create")
+    sources = handler.run_optional(
+        "zip_create resolve",
+        lambda: resolve_source_files(p, source_mode=source_mode, step_label="file_ops zip_create"),
+    )
+    if not sources:
+        return
 
     dest_dir = str(p.get("dest_dir", "") or "").strip()
     dest_path = str(p.get("dest_path", "") or "").strip()
@@ -163,18 +240,23 @@ def _run_zip_create(ctx: RunContext, p: dict[str, Any]) -> None:
     directory = str(p.get("directory", "") or "").strip()
     preserve = param_is_on(p.get("preserve_structure", False))
 
-    out = create_zip_archive(
-        sources,
-        archive_path,
-        source_root=directory if preserve else "",
-        preserve_structure=preserve,
-        ensure_dirs=ensure_dirs,
-        log=lambda m: _log(ctx, m),
-    )
-    _set_result_var(ctx, p, out)
+    def _do() -> str:
+        return create_zip_archive(
+            sources,
+            archive_path,
+            source_root=directory if preserve else "",
+            preserve_structure=preserve,
+            ensure_dirs=ensure_dirs,
+            log=lambda m: _log(ctx, m),
+        )
+
+    out = handler.run_optional(f"zip_create {archive_path}", _do)
+    if out:
+        _set_result_var(ctx, p, out)
 
 
 def _run_zip_extract(ctx: RunContext, p: dict[str, Any]) -> None:
+    handler = _FileOpHandler(ctx, p)
     ensure_dirs = _ensure_dirs_enabled(p)
     archive_path = str(p.get("source_path", "") or "").strip()
     if not archive_path:
@@ -184,12 +266,15 @@ def _run_zip_extract(ctx: RunContext, p: dict[str, Any]) -> None:
     if not dest_dir:
         raise ValueError("file_ops zip_extract: задайте dest_dir")
 
-    extracted = extract_zip_archive(
-        archive_path,
-        dest_dir,
-        ensure_dirs=ensure_dirs,
-        log=lambda m: _log(ctx, m),
-    )
+    def _do() -> list[str]:
+        return extract_zip_archive(
+            archive_path,
+            dest_dir,
+            ensure_dirs=ensure_dirs,
+            log=lambda m: _log(ctx, m),
+        )
+
+    extracted = handler.run_optional(f"zip_extract {archive_path}", _do)
     if extracted:
         _set_result_var(ctx, p, extracted[-1])
 
@@ -249,6 +334,7 @@ def register_file_ops() -> None:
                 "inc_position": False,
                 "preserve_structure": False,
                 "on_conflict": "overwrite",
+                "on_error": "error",
                 "ensure_dirs": True,
                 "result_var": "",
                 "dialogs": [],

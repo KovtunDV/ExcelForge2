@@ -327,6 +327,7 @@ def run_group_template_export(ctx: RunContext, step: Step) -> None:
     table_start_row = _parse_table_start_row(p, form_mode=form_mode)
     table_template_row = _parse_table_template_row(p, table_start_row)
     skip_empty = param_is_on(p.get("skip_empty_groups", True))
+    normalize_values = param_is_on(p.get("normalize_values", False))
 
     inc_col, inc_start = _parse_row_increment(p)
 
@@ -418,6 +419,7 @@ def run_group_template_export(ctx: RunContext, step: Step) -> None:
                             row_data=row_dict,
                             static_fields=static_fields,
                             inc=inc_num,
+                            normalize_values=normalize_values,
                         )
                         break
                     except Exception as e:  # noqa: BLE001
@@ -451,6 +453,7 @@ def run_group_template_export(ctx: RunContext, step: Step) -> None:
                     static_fields=static_fields,
                     row_increment_col=inc_col,
                     row_increment_start=inc_start,
+                    normalize_values=normalize_values,
                 )
                 break
             except Exception as e:  # noqa: BLE001
@@ -503,6 +506,7 @@ def register_group_template_export() -> None:
                 "row_filter": {},
                 "sort_within_group": {},
                 "skip_empty_groups": True,
+                "normalize_values": False,
                 "dialogs": [],
                 "directory_initial": "",
             },

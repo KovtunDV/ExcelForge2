@@ -13,7 +13,7 @@ from openpyxl import load_workbook
 from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
 from openpyxl.worksheet.worksheet import Worksheet
 
-from app.steps.numeric_parse import normalize_value_for_excel
+from app.steps.numeric_parse import normalize_value_for_excel, prepare_value_for_excel_cell
 
 
 def safe_filename(name: str) -> str:
@@ -245,10 +245,42 @@ def _apply_row_style_snapshot(ws: Worksheet, target_row: int, snap: _RowStyleSna
         ws.row_dimensions[target_row].height = snap.height
 
 
-def _set_cell_value(ws: Worksheet, row: int, col: int, value: Any) -> None:
+def _apply_prepared_value(cell, value: Any, *, normalize: bool) -> None:
+    prepared, fmt_override = prepare_value_for_excel_cell(
+        value,
+        normalize=normalize,
+        number_format=cell.number_format,
+    )
+    cell.value = prepared
+    if fmt_override:
+        cell.number_format = fmt_override
+
+
+def _set_cell_value(
+    ws: Worksheet,
+    row: int,
+    col: int,
+    value: Any,
+    *,
+    number_format: str | None = None,
+    normalize: bool = False,
+) -> None:
     """Записать значение, не создавая новую ячейку без стиля."""
     cell = ws.cell(row=row, column=col)
-    cell.value = normalize_value_for_excel(value)
+    if number_format:
+        cell.number_format = number_format
+    _apply_prepared_value(cell, value, normalize=normalize)
+
+
+def _capture_row_placeholder_cells(ws: Worksheet, row: int) -> dict[int, str]:
+    """Шаблоны {{row.*}} по столбцам строки-образца таблицы."""
+    out: dict[int, str] = {}
+    max_col = _row_style_max_column(ws, row)
+    for col in range(1, max_col + 1):
+        val = ws.cell(row=row, column=col).value
+        if isinstance(val, str) and "{{row." in val:
+            out[col] = val
+    return out
 
 
 def copy_row_styles(ws: Worksheet, src_row: int, dst_row: int, *, max_col: int | None = None) -> None:
@@ -333,17 +365,25 @@ def resolve_cell_value(
     var_values: dict[str, Any],
     row_values: dict[str, Any] | None = None,
     inc: int | None = None,
+    number_format: str | None = None,
+    normalize: bool = False,
 ) -> Any:
-    """Подстановка в ячейку; для чистого плейсхолдера agg/row — число, не текст."""
+    """Подстановка в ячейку; при normalize=True чистый agg/row может стать числом."""
     raw = str(text) if text is not None else ""
     m = _PURE_PLACEHOLDER_RE.match(raw)
     if m:
         if m.group("agg") is not None:
             key = m.group("agg").strip()
-            return normalize_value_for_excel(agg_values.get(key, ""))
+            val = agg_values.get(key, "")
+            if normalize:
+                return normalize_value_for_excel(val, number_format=number_format)
+            return val
         if m.group("row") is not None and row_values is not None:
             key = m.group("row").strip()
-            return normalize_value_for_excel(row_values.get(key, ""))
+            val = row_values.get(key, "")
+            if normalize:
+                return normalize_value_for_excel(val, number_format=number_format)
+            return val
         if m.group("group") is not None:
             key = m.group("group").strip()
             val = group_values.get(key, group_values.get(key.strip(), ""))
@@ -351,8 +391,10 @@ def resolve_cell_value(
         if m.group("var") is not None:
             key = m.group("var").strip()
             val = var_values.get(key, var_values.get(f"@{key}", ""))
-            num = normalize_value_for_excel(val)
-            return num if isinstance(num, (int, float)) and not isinstance(num, bool) else val
+            if normalize:
+                num = normalize_value_for_excel(val)
+                return num if isinstance(num, (int, float)) and not isinstance(num, bool) else val
+            return val
         if m.group(0).lstrip().startswith("{{inc"):
             start = int(m.group("inc_start") or "1")
             if inc is not None:
@@ -374,6 +416,7 @@ def apply_static_fields(
     *,
     row_values: dict[str, Any] | None = None,
     inc: int | None = None,
+    normalize: bool = False,
 ) -> None:
     for i, item in enumerate(fields):
         if not isinstance(item, dict):
@@ -383,15 +426,18 @@ def apply_static_fields(
             raise ValueError(f"static_fields[{i}]: cell is required")
         row, col = parse_cell_ref(str(cell_ref))
         raw_value = item.get("value", "")
-        text = resolve_cell_value(
+        cell = ws.cell(row=row, column=col)
+        resolved = resolve_cell_value(
             str(raw_value),
             group_values=context.get("group", {}),
             agg_values=context.get("agg", {}),
             var_values=context.get("var", {}),
             row_values=row_values,
             inc=inc,
+            number_format=cell.number_format,
+            normalize=normalize,
         )
-        ws.cell(row=row, column=col, value=text)
+        _apply_prepared_value(cell, resolved, normalize=normalize)
 
 
 def replace_in_worksheet(
@@ -404,6 +450,7 @@ def replace_in_worksheet(
     only_rows: set[int] | None = None,
     row_data: dict[str, Any] | None = None,
     inc: int | None = None,
+    normalize: bool = False,
 ) -> None:
     skip_rows = skip_rows or set()
     for row in ws.iter_rows():
@@ -416,14 +463,17 @@ def replace_in_worksheet(
             val = cell.value
             if not isinstance(val, str) or "{{" not in val:
                 continue
-            cell.value = resolve_cell_value(
+            resolved = resolve_cell_value(
                 val,
                 group_values=group_values,
                 agg_values=agg_values,
                 var_values=var_values,
                 row_values=row_data,
                 inc=inc,
+                number_format=cell.number_format,
+                normalize=normalize,
             )
+            _apply_prepared_value(cell, resolved, normalize=normalize)
 
 
 def _resolve_worksheet(wb, sheet_name: str) -> Worksheet:
@@ -447,6 +497,7 @@ def write_group_to_template(
     static_fields: list[dict[str, Any]],
     row_increment_col: int | None = None,
     row_increment_start: int = 1,
+    normalize_values: bool = False,
 ) -> None:
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     shutil.copy2(template_path, out_path)
@@ -460,10 +511,11 @@ def write_group_to_template(
     if row_increment_col is not None:
         style_cols.add(int(row_increment_col))
     style_snapshot = _capture_row_style_snapshot(ws, style_row, extra_cols=style_cols)
+    row_placeholder_templates = _capture_row_placeholder_cells(ws, style_row)
 
     ctx = {"group": group_values, "agg": agg_values, "var": var_values}
     if static_fields:
-        apply_static_fields(ws, static_fields, ctx)
+        apply_static_fields(ws, static_fields, ctx, normalize=normalize_values)
 
     n = len(group_df_rows)
     output_rows = {start_row + i for i in range(max(n, 1))}
@@ -474,6 +526,7 @@ def write_group_to_template(
         agg_values=agg_values,
         var_values=var_values,
         skip_rows=output_rows,
+        normalize=normalize_values,
     )
 
     if n > 1:
@@ -487,7 +540,19 @@ def write_group_to_template(
             _apply_row_style_snapshot(ws, excel_row, style_snapshot)
 
         if row_increment_col is not None:
-            _set_cell_value(ws, excel_row, row_increment_col, row_increment_start + i)
+            inc_snap = style_snapshot.cells.get(int(row_increment_col))
+            _set_cell_value(
+                ws,
+                excel_row,
+                row_increment_col,
+                row_increment_start + i,
+                number_format=inc_snap.number_format if inc_snap else None,
+                normalize=normalize_values,
+            )
+
+        if i > 0:
+            for col, template_text in row_placeholder_templates.items():
+                ws.cell(row=excel_row, column=col, value=template_text)
 
         for df_col, excel_col in table_columns:
             if df_col not in row_dict:
@@ -497,7 +562,15 @@ def write_group_to_template(
                 cell_val = None
             else:
                 cell_val = val
-            _set_cell_value(ws, excel_row, excel_col, cell_val)
+            col_snap = style_snapshot.cells.get(excel_col)
+            _set_cell_value(
+                ws,
+                excel_row,
+                excel_col,
+                cell_val,
+                number_format=col_snap.number_format if col_snap else None,
+                normalize=normalize_values,
+            )
 
         replace_in_worksheet(
             ws,
@@ -507,6 +580,7 @@ def write_group_to_template(
             only_rows={excel_row},
             row_data=row_dict,
             inc=inc_num,
+            normalize=normalize_values,
         )
 
     footer_start = start_row + max(n, 1)
@@ -516,6 +590,7 @@ def write_group_to_template(
         agg_values=agg_values,
         var_values=var_values,
         only_rows={r for r in range(footer_start, (ws.max_row or footer_start) + 1)},
+        normalize=normalize_values,
     )
 
     wb.save(out_path)
@@ -532,6 +607,7 @@ def write_form_row_to_template(
     row_data: dict[str, Any],
     static_fields: list[dict[str, Any]],
     inc: int | None = None,
+    normalize_values: bool = False,
 ) -> None:
     """
     Однострочный режим: {{row.*}}, {{group.*}}, {{agg.*}}, {{@var}}, {{inc}}
@@ -544,7 +620,9 @@ def write_form_row_to_template(
 
     ctx = {"group": group_values, "agg": agg_values, "var": var_values}
     if static_fields:
-        apply_static_fields(ws, static_fields, ctx, row_values=row_data, inc=inc)
+        apply_static_fields(
+            ws, static_fields, ctx, row_values=row_data, inc=inc, normalize=normalize_values
+        )
 
     replace_in_worksheet(
         ws,
@@ -553,6 +631,7 @@ def write_form_row_to_template(
         var_values=var_values,
         row_data=row_data,
         inc=inc,
+        normalize=normalize_values,
     )
 
     wb.save(out_path)

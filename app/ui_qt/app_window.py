@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtWidgets import QMainWindow, QTabWidget
 
 from app.settings import effective_pipelines_dir, load_settings
+from app.version import __version__
 from app.ui_qt.builder_view import BuilderView
 from app.ui_qt.font_utils import apply_font_to_application
 from app.ui_qt.runner_view import RunnerView
@@ -12,7 +13,7 @@ from app.ui_qt.settings_view import SettingsView
 class AppWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("ExcelForge")
+        self.setWindowTitle(f"ExcelForge {__version__}")
         self.resize(1200, 750)
         self.setMinimumSize(1000, 650)
 

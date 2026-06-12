@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 from typing import Callable
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFileDialog,
     QCheckBox,
@@ -56,15 +55,7 @@ class SettingsView(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
 
-        lf_about = QGroupBox("О программе")
-        about_layout = QFormLayout(lf_about)
-        self.lbl_version = QLabel(__version__)
-        self.lbl_version.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
-        about_layout.addRow("Версия:", self.lbl_version)
-        about_layout.addRow("Приложение:", QLabel("ExcelForge"))
-        root.addWidget(lf_about)
+        root.addWidget(QLabel(f"ExcelForge — версия {__version__}"))
 
         lf_pipelines = QGroupBox("Каталог пайплайнов")
         pipelines_layout = QVBoxLayout(lf_pipelines)
